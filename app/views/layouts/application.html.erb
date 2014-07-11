@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Voice</title>
+  <%= stylesheet_link_tag    "application", media: "all", "data-turbolinks-track" => true %>
+  <%= javascript_include_tag "application", "data-turbolinks-track" => true %>
+  <%= csrf_meta_tags %>
+  <!--<script src="//cdnjs.cloudflare.com/ajax/libs/annyang/1.1.0/annyang.min.js"></script> -->
+
+  <script>
+    window.onload = function(){
+  if (annyang) {
+    // On défini les phrases à prendre en charge
+    var commands = {
+            'tf 1': function() {
+                $('#hello').show();
+                $.ajax("/pages/httprequest")
+            }
+    };
+    annyang.setLanguage('fr');
+    // On initialise le script
+    annyang.addCommands(commands);
+    // On démarre l'écoute 
+    annyang.start();
+  }
+  }
+  </script>
+</head>
+<body>
+
+<%= yield %>
+
+</body>
+</html>
