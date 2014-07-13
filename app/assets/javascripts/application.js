@@ -11,6 +11,9 @@
 // about supported directives.
 //
 //= require jquery
+//= require bootstrap-sprockets
+//= require magister
+//= require modernizr.custom.72241
 //= require jquery_ujs
 //= require turbolinks
 //= require_tree

@@ -1,6 +1,7 @@
 Trevor::Application.routes.draw do
   root "pages#home"
   get 'pages/httprequest' => 'pages#httprequest'
+  get 'pages/httprequest2' => 'pages#httprequest2'
   # The priority is based upon order of creation: first created -> highest priority.
   # See how all your routes lay out with "rake routes".
 
