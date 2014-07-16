@@ -1,5 +1,8 @@
 class PagesController < ApplicationController
   def home
+  	#client = Fitgem::Client.new({:consumer_key => 'a99a1cee773548c6b90fe2eb7d11825c', :consumer_secret => '1631e5b33d1b4a89b1045e79326444fe'})
+ 	#@fitbit = client.user_info
+ 	
   end
   
  def httprequest
@@ -54,8 +57,18 @@ class PagesController < ApplicationController
 	 		@chaine = 0
  	end	
  	uri = URI.parse('http://hd1.freebox.fr/pub/remote_control')
- 	Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @chaine })
+ 	digit = @chaine.to_s.size
+ 	@first, @second = @chaine.to_s.split('')
+ 	case digit
+ 	when 1
+ 		Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @first, 'long' => true })
 
+ 	when 2
+ 		Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @first, 'long' => true })
+ 		Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @second })
+ 	else
+ 		puts "Erreur de chaines"
+ 	end
  end
 #
 end

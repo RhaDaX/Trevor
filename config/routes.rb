@@ -1,5 +1,11 @@
 Trevor::Application.routes.draw do
   root "pages#home"
+  # Routes pour gestion utilisateurs fitbit etc 
+  get   '/login', :to => 'sessions#new', :as => :login
+  get '/auth/:provider/callback', :to => 'sessions#create'
+  get '/auth/failure', :to => 'sessions#failure'
+  get "sessions/destroy"
+
   get 'pages/httprequest' => 'pages#httprequest'
   get 'pages/httprequest2' => 'pages#httprequest2'
   # The priority is based upon order of creation: first created -> highest priority.
