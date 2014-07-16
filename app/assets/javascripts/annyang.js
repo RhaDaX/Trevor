@@ -12,7 +12,8 @@
   		'*term' : function(term) {
   			term = term.replace( /\s/g, "")
   			term = term.toLowerCase()
-  			$.ajax("/pages/httprequest2?parameters="+term)
+  			$.ajax("/pages/httprequest?parameters="+term)
+        $.ajax("/pages/speak?text=ok")
   			$('#hello').show()
   			$('#hello').text(term)
   		}

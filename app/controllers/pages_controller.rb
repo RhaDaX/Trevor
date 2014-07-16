@@ -9,13 +9,6 @@ class PagesController < ApplicationController
  	require "net/http"
  	require "uri"
  	@passed_params = params[:parameters]
- 	uri = URI.parse('http://hd1.freebox.fr/pub/remote_control')
- 	Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @passed_params })
- end
- def httprequest2
- 	require "net/http"
- 	require "uri"
- 	@passed_params = params[:parameters]
  	case @passed_params
 	 	when "tf1"
 	 		@chaine = 1
@@ -47,7 +40,7 @@ class PagesController < ApplicationController
 	 		@chaine = 14
 	 	when "bfm"
 	 		@chaine = 15
-	 	when "itélé"
+	 	when "i-télé"
 	 		@chaine = 16
 	 	when "d17"
 	 		@chaine = 17
@@ -55,20 +48,42 @@ class PagesController < ApplicationController
 	 		@chaine = 18
 	 	else
 	 		@chaine = 0
+	 		valid = false
  	end	
+ 	unless valid == false
+ 		speak "A ton service" 
+ 	else
+ 		speak "commande non reconnue"
+ 	end
  	uri = URI.parse('http://hd1.freebox.fr/pub/remote_control')
  	digit = @chaine.to_s.size
  	@first, @second = @chaine.to_s.split('')
+ 	#Scan du nombre de touche appuyé pour gerer l'affichage des chaines
  	case digit
  	when 1
- 		Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @first, 'long' => true })
-
+ 		@request1 = Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @first })
+ 		
  	when 2
- 		Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @first, 'long' => true })
- 		Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @second })
+ 		@request1 = Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @first, 'long' => true })
+ 		@request2 = Net::HTTP.post_form( uri, {'code' => '73098161', 'key' => @second })
  	else
  		puts "Erreur de chaines"
  	end
  end
+ load 'operating_system.rb'
+ 
+def speak(text)
+  if OperatingSystem.windows?
+    require 'win32/sapi5'
+    v = Win32::SpVoice.new
+    v.Speak(text)
+  elsif OperatingSystem.mac?
+    IO.popen(["say"], "w") {|pipe| pipe.puts text}
+  else
+    # Try to run "espeak". No OperatingSystem check: "espeak" is
+    # for Linux but is also an optional package for BSD.
+    IO.popen(["espeak", "-stdin"], "w") {|pipe| pipe.puts text}
+  end
+end
 #
 end
