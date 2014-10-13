@@ -8,9 +8,8 @@ gem 'sqlite3'
 
 # Use SCSS for stylesheets
 gem 'sass-rails', '~> 4.0.2'
-gem 'bootstrap-sass'
 gem 'autoprefixer-rails'
-
+gem 'twitter-bootstrap-rails', :git => 'git://github.com/seyhunak/twitter-bootstrap-rails.git'
 # Use Uglifier as compressor for JavaScript assets
 gem 'uglifier', '>= 1.3.0'
 
@@ -37,5 +36,6 @@ end
 # ajout du gem Fitbit
 gem 'fitgem'
 gem 'omniauth-fitbit'
-gem 'plex-ruby'
+gem 'nokogiri'
+gem 'lifx'
 

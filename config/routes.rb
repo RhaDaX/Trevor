@@ -1,13 +1,19 @@
 Trevor::Application.routes.draw do
+  get 'city' => 'city#show'
   root "pages#home"
   # Routes pour gestion utilisateurs fitbit etc 
-  get   '/login', :to => 'sessions#new', :as => :login
+  get '/login', :to => 'sessions#new', :as => :login
   get '/auth/:provider/callback', :to => 'sessions#create'
   get '/auth/failure', :to => 'sessions#failure'
   get "sessions/destroy"
 
+  get 'meteo/j0' => 'meteos#j0'
+  get 'light' => 'bulb#fetch_light'
+
   get 'pages/httprequest' => 'pages#httprequest'
   get 'pages/httprequest2' => 'pages#httprequest2'
+  get 'bulb/switch_on' => 'bulb#switch_on'
+  get 'bulb/switch_off' => 'bulb#switch_off'
   # The priority is based upon order of creation: first created -> highest priority.
   # See how all your routes lay out with "rake routes".
 

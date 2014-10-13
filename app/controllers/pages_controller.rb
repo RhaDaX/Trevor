@@ -1,10 +1,17 @@
 class PagesController < ApplicationController
+  require 'lifx'
   def home
-  	#client = Fitgem::Client.new({:consumer_key => 'a99a1cee773548c6b90fe2eb7d11825c', :consumer_secret => '1631e5b33d1b4a89b1045e79326444fe'})
- 	#@fitbit = client.user_info
- 	
+		client = LIFX::Client.lan
+		lum = client.lights.with_label('Salon')
+		if lum.on? == true
+			@etat = 'Allumée'
+		else
+			@etat = 'Eteinte'
+		end
+
+		@nom_lampe = lum.label
   end
-  
+
  def httprequest
  	require "net/http"
  	require "uri"
@@ -70,20 +77,6 @@ class PagesController < ApplicationController
  		puts "Erreur de chaines"
  	end
  end
- load 'operating_system.rb'
- 
-def speak(text)
-  if OperatingSystem.windows?
-    require 'win32/sapi5'
-    v = Win32::SpVoice.new
-    v.Speak(text)
-  elsif OperatingSystem.mac?
-    IO.popen(["say"], "w") {|pipe| pipe.puts text}
-  else
-    # Try to run "espeak". No OperatingSystem check: "espeak" is
-    # for Linux but is also an optional package for BSD.
-    IO.popen(["espeak", "-stdin"], "w") {|pipe| pipe.puts text}
-  end
-end
+
 #
 end

@@ -11,10 +11,24 @@
 // about supported directives.
 //
 //= require jquery
-//= require bootstrap-sprockets
 //= require magister
 //= require modernizr.custom.72241
 //= require jquery_ujs
 //= require turbolinks
 //= require_tree
+
+// Auto reload pour la detection ampoule 
+	function executeQuery() {
+		  $.ajax({
+		    //url: '/index',
+		    success: function(data) {
+		      $('#bulb').load('/ #bulb')
+		    }
+		  });
+		  setTimeout(executeQuery, 10000);
+		}
+
+		$(document).ready(function() {
+		  setTimeout(executeQuery, 10000);
+	});
 

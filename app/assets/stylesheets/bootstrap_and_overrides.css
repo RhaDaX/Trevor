@@ -1,0 +1,27 @@
+/*
+  =require twitter-bootstrap-static/bootstrap
+
+  Use Font Awesome icons (default)
+  To use Glyphicons sprites instead of Font Awesome, replace with "require twitter-bootstrap-static/sprites"
+  =require twitter-bootstrap-static/fontawesome
+  */
+@import "weather-icons";
+  body {
+	background-color: transparent;
+	min-height:100%; 	
+	-webkit-font-smoothing: antialiased;
+	-webkit-overflow-scrolling: touch;
+	line-height: 1.5em;
+	font-size:14px;
+	font-family: 'Yanone Kaffeesatz', Arial, sans-serif;
+	color:#fff;
+	color: rgba(5, 245, 255, 0.89);
+	font-weight: normal;
+	padding: 30px;
+}
+
+p {
+	font-size: 25px;
+	color: #c2fdff;
+}
+

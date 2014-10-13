@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20140715080426) do
+ActiveRecord::Schema.define(version: 20140901114312) do
 
   create_table "authorizations", force: true do |t|
     t.string   "provider"
@@ -21,9 +21,29 @@ ActiveRecord::Schema.define(version: 20140715080426) do
     t.datetime "updated_at"
   end
 
+  create_table "bulbs", force: true do |t|
+    t.datetime "created_at"
+    t.datetime "updated_at"
+  end
+
+  create_table "cam_views", force: true do |t|
+    t.datetime "created_at"
+    t.datetime "updated_at"
+  end
+
+  create_table "meteos", force: true do |t|
+    t.datetime "created_at"
+    t.datetime "updated_at"
+  end
+
   create_table "users", force: true do |t|
     t.string   "name"
     t.string   "email"
+    t.datetime "created_at"
+    t.datetime "updated_at"
+  end
+
+  create_table "weather_lookups", force: true do |t|
     t.datetime "created_at"
     t.datetime "updated_at"
   end
