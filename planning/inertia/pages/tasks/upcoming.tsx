@@ -1,7 +1,9 @@
 import { Head } from '@inertiajs/react'
+import { CalendarRange } from 'lucide-react'
 import type { TaskDto } from '~/lib/types'
-import { formatDayHeading, localDayKey, useTimezone } from '~/lib/format'
-import { EmptyState, Section, TaskList } from '~/components/task_row'
+import { formatDayHeading, localDayKey, plural, useTimezone } from '~/lib/format'
+import { Section, TaskList } from '~/components/task_row'
+import { EmptyState, PageHeader } from '~/components/ui'
 
 export default function Upcoming({ tasks }: { tasks: TaskDto[] }) {
   const tz = useTimezone()
@@ -14,8 +16,22 @@ export default function Upcoming({ tasks }: { tasks: TaskDto[] }) {
   return (
     <>
       <Head title="À venir" />
-      <h1 className="mb-5 text-2xl font-bold tracking-tight">À venir</h1>
-      {!tasks.length && <EmptyState>Aucune tâche datée à venir.</EmptyState>}
+      <PageHeader
+        title="À venir"
+        description={
+          tasks.length
+            ? `${plural(tasks.length, 'tâche datée', 'tâches datées')}, par jour de rappel.`
+            : undefined
+        }
+      />
+      {!tasks.length && (
+        <EmptyState
+          icon={<CalendarRange className="size-8" strokeWidth={1.5} />}
+          title="Rien à l’horizon"
+        >
+          Les tâches datées apparaîtront ici, jour par jour.
+        </EmptyState>
+      )}
       {[...groups.entries()].map(([key, list]) => (
         <Section key={key} title={formatDayHeading(key, tz)} count={list.length}>
           <TaskList tasks={list} />

@@ -1,31 +1,224 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/hanken-grotesk';
 
-@theme {
-  --font-sans:
-    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
-  --color-company-a: #2563eb;
-  --color-company-b: #9333ea;
+/*
+ * Design tokens — neutres chauds teintés, une seule encre, signaux sémantiques.
+ * Tout passe par des variables : le mode sombre ne redéfinit que :root.
+ */
+:root {
+  color-scheme: light;
+  --paper: oklch(0.984 0.004 84);
+  --surface: oklch(0.998 0.002 84);
+  --sunken: oklch(0.962 0.006 84);
+  --line: oklch(0.912 0.007 84);
+  --line-strong: oklch(0.85 0.009 84);
+  --ink: oklch(0.205 0.012 70);
+  --ink-2: oklch(0.43 0.012 70);
+  --ink-3: oklch(0.585 0.01 70);
+  --ink-inverse: oklch(0.985 0.004 84);
+
+  --signal: oklch(0.585 0.19 33); /* vermillon : retard, urgent */
+  --signal-soft: oklch(0.955 0.03 33);
+  --amber: oklch(0.7 0.15 68); /* à trier */
+  --amber-ink: oklch(0.5 0.12 62);
+  --amber-soft: oklch(0.962 0.04 80);
+  --done: oklch(0.6 0.13 155);
+  --done-soft: oklch(0.955 0.035 155);
+  --focus: oklch(0.6 0.15 250);
+
+  --co-a: oklch(0.5 0.16 258);
+  --co-a-soft: oklch(0.95 0.025 258);
+  --co-b: oklch(0.55 0.14 40);
+  --co-b-soft: oklch(0.955 0.025 45);
+
+  --shadow-sm: 0 1px 2px oklch(0.2 0.02 70 / 0.06);
+  --shadow-md: 0 1px 2px oklch(0.2 0.02 70 / 0.05), 0 8px 24px -6px oklch(0.2 0.02 70 / 0.12);
+  --shadow-lg: 0 2px 4px oklch(0.2 0.02 70 / 0.05), 0 24px 56px -12px oklch(0.2 0.02 70 / 0.22);
 }
 
-html {
-  -webkit-tap-highlight-color: transparent;
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper: oklch(0.172 0.006 70);
+    --surface: oklch(0.205 0.007 70);
+    --sunken: oklch(0.155 0.006 70);
+    --line: oklch(0.28 0.008 70);
+    --line-strong: oklch(0.36 0.009 70);
+    --ink: oklch(0.94 0.006 84);
+    --ink-2: oklch(0.76 0.008 84);
+    --ink-3: oklch(0.6 0.008 84);
+    --ink-inverse: oklch(0.18 0.006 70);
+
+    --signal: oklch(0.7 0.17 33);
+    --signal-soft: oklch(0.28 0.06 33);
+    --amber: oklch(0.78 0.14 72);
+    --amber-ink: oklch(0.82 0.12 75);
+    --amber-soft: oklch(0.29 0.05 70);
+    --done: oklch(0.72 0.13 155);
+    --done-soft: oklch(0.28 0.05 155);
+    --focus: oklch(0.72 0.13 250);
+
+    --co-a: oklch(0.74 0.12 258);
+    --co-a-soft: oklch(0.29 0.05 258);
+    --co-b: oklch(0.76 0.11 45);
+    --co-b-soft: oklch(0.29 0.045 45);
+
+    --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
+    --shadow-md: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px -6px oklch(0 0 0 / 0.5);
+    --shadow-lg: 0 2px 4px oklch(0 0 0 / 0.3), 0 24px 56px -12px oklch(0 0 0 / 0.65);
+  }
 }
 
-body {
-  padding-bottom: env(safe-area-inset-bottom);
+@theme inline {
+  --font-sans: 'Hanken Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    'Bricolage Grotesque Variable', 'Hanken Grotesk Variable', ui-sans-serif, sans-serif;
+
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-inverse: var(--ink-inverse);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-amber: var(--amber);
+  --color-amber-ink: var(--amber-ink);
+  --color-amber-soft: var(--amber-soft);
+  --color-done: var(--done);
+  --color-done-soft: var(--done-soft);
+  --color-focus: var(--focus);
+  --color-co-a: var(--co-a);
+  --color-co-a-soft: var(--co-a-soft);
+  --color-co-b: var(--co-b);
+  --color-co-b-soft: var(--co-b-soft);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-pop-in: pop-in 180ms var(--ease-out-quart);
+  --animate-rise: rise 240ms var(--ease-out-expo);
+  --animate-fade: fade 160ms ease-out;
 }
 
-.pt-safe {
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 16;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  ::selection {
+    background: oklch(from var(--focus) l c h / 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* évite le zoom automatique d'iOS */
+  }
+
+  @media (min-width: 640px) {
+    input,
+    textarea,
+    select {
+      font-size: 15px;
+    }
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility pt-safe {
   padding-top: env(safe-area-inset-top);
 }
 
-.pb-safe {
+@utility pb-safe {
   padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
 }
 
-input,
-textarea,
-select {
-  font-size: 16px; /* évite le zoom auto sur iPhone */
+/* Coche animée à la complétion */
+.check-path {
+  stroke-dasharray: 16;
+  animation: check-draw 260ms var(--ease-out-quart) forwards;
+}
+
+/* Ligne qui se replie quand la tâche est faite */
+.row-leave {
+  animation: row-leave 420ms var(--ease-out-quart) 180ms forwards;
+}
+
+@keyframes row-leave {
+  to {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
 }

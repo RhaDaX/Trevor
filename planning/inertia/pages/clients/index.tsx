@@ -1,8 +1,17 @@
 import { Head, Link, router } from '@inertiajs/react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  RefreshCw,
+  Search,
+  UsersRound,
+  Webhook,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ClientDto } from '~/lib/types'
 import { formatDateTime, useTimezone } from '~/lib/format'
-import CompanyBadge from '~/components/company_badge'
+import { Card, CompanyBadge, CompanyDot, EmptyState, PageHeader, cx } from '~/components/ui'
 
 interface SyncInfo {
   source: string
@@ -31,94 +40,135 @@ export default function ClientsIndex({
     if (query === q) return
     const t = setTimeout(
       () => router.get('/clients', { q: query }, { preserveState: true, replace: true }),
-      250
+      220
     )
     return () => clearTimeout(t)
   }, [query])
 
+  const page = (n: number) => `/clients?q=${encodeURIComponent(q)}&page=${n}`
+
   return (
     <>
       <Head title="Clients" />
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">Clients</h1>
-      <p className="mb-4 text-sm text-stone-500">
-        Miroir en lecture seule des deux CRM · {meta.total} clients
-      </p>
-
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Rechercher un nom, un email, un domaine…"
-        className="mb-4 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 outline-none focus:border-stone-500"
+      <PageHeader
+        title="Clients"
+        description={`Miroir en lecture seule des deux CRM · ${meta.total.toLocaleString('fr-FR')} fiches`}
       />
 
-      <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white">
-        {clients.map((c) => (
-          <li key={c.id}>
-            <Link
-              href={`/clients/${c.id}`}
-              className="flex items-center gap-3 px-3 py-2.5 hover:bg-stone-50"
-            >
-              <CompanyBadge company={c.company} />
-              <span className="min-w-0 flex-1 truncate">{c.name}</span>
-              <span className="hidden truncate text-xs text-stone-400 sm:block">{c.emails[0]}</span>
-              {!!c.openTasks && (
-                <span className="rounded-full bg-stone-100 px-2 text-xs font-medium text-stone-600">
-                  {c.openTasks}
+      <div className="mb-4 flex h-11 items-center gap-2.5 rounded-xl bg-surface px-3.5 shadow-sm ring-1 ring-line-strong focus-within:ring-2 focus-within:ring-ink/80">
+        <Search className="size-[18px] text-ink-3" strokeWidth={2} />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Nom, email ou domaine…"
+          aria-label="Rechercher un client"
+          className="h-full w-full bg-transparent text-ink outline-none placeholder:text-ink-3 focus-visible:outline-none"
+        />
+      </div>
+
+      {clients.length ? (
+        <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-surface shadow-sm ring-1 ring-line">
+          {clients.map((c) => (
+            <li key={c.id}>
+              <Link
+                href={`/clients/${c.id}`}
+                className="flex h-14 items-center gap-3 px-4 transition-colors hover:bg-sunken/60"
+              >
+                <span
+                  className={cx(
+                    'flex size-8 shrink-0 items-center justify-center rounded-lg text-[13px] font-semibold',
+                    c.company === 'a' ? 'bg-co-a-soft text-co-a' : 'bg-co-b-soft text-co-b'
+                  )}
+                  aria-hidden
+                >
+                  {c.name.slice(0, 1).toUpperCase()}
                 </span>
-              )}
-            </Link>
-          </li>
-        ))}
-        {!clients.length && (
-          <li className="px-3 py-8 text-center text-sm text-stone-500">Aucun client.</li>
-        )}
-      </ul>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] text-ink">{c.name}</span>
+                  {c.emails[0] && (
+                    <span className="block truncate text-xs text-ink-3">{c.emails[0]}</span>
+                  )}
+                </span>
+                {!!c.openTasks && (
+                  <span className="rounded-full bg-sunken px-2 text-xs leading-6 font-medium text-ink-2 ring-1 ring-line tabular">
+                    {c.openTasks} en cours
+                  </span>
+                )}
+                <ChevronRight className="size-4 text-ink-3" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyState
+          icon={<UsersRound className="size-8" strokeWidth={1.5} />}
+          title={q ? 'Aucun résultat' : 'Pas encore de clients'}
+        >
+          {q
+            ? `Rien ne correspond à « ${q} ».`
+            : 'Ils apparaîtront après le premier webhook ou la synchro de nuit.'}
+        </EmptyState>
+      )}
 
       {meta.lastPage > 1 && (
-        <div className="mt-3 flex justify-between text-sm">
+        <nav className="mt-4 flex items-center justify-between text-sm" aria-label="Pagination">
           {meta.currentPage > 1 ? (
             <Link
-              href={`/clients?q=${encodeURIComponent(q)}&page=${meta.currentPage - 1}`}
-              className="text-blue-600"
+              href={page(meta.currentPage - 1)}
+              className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-ink-2 hover:bg-sunken hover:text-ink"
             >
-              ← Précédents
+              <ChevronLeft className="size-4" /> Précédents
             </Link>
           ) : (
             <span />
           )}
-          <span className="text-stone-400">
+          <span className="text-ink-3 tabular">
             {meta.currentPage} / {meta.lastPage}
           </span>
           {meta.currentPage < meta.lastPage ? (
             <Link
-              href={`/clients?q=${encodeURIComponent(q)}&page=${meta.currentPage + 1}`}
-              className="text-blue-600"
+              href={page(meta.currentPage + 1)}
+              className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-ink-2 hover:bg-sunken hover:text-ink"
             >
-              Suivants →
+              Suivants <ChevronRight className="size-4" />
             </Link>
           ) : (
             <span />
           )}
-        </div>
+        </nav>
       )}
 
-      <h2 className="mt-8 mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-stone-500">
-        Synchronisation
+      <h2 className="mt-12 mb-3 px-1 text-[13px] font-semibold text-ink-2">
+        Synchronisation des CRM
       </h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {sync.map((s) => (
-          <div key={s.source} className="rounded-xl border border-stone-200 bg-white p-3 text-sm">
-            <div className="mb-1 flex items-center gap-2 font-medium">
-              <CompanyBadge company={s.company} /> {s.name}
+          <Card key={s.source} className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="flex items-center gap-2 font-medium">
+                <CompanyDot company={s.company} /> {s.name}
+              </span>
+              <CompanyBadge company={s.company} />
             </div>
-            <p className="text-xs text-stone-500">
-              Dernier webhook : {formatDateTime(s.lastEventAt, tz)}
-            </p>
-            <p className="text-xs text-stone-500">
-              Dernière synchro : {formatDateTime(s.lastFullSync, tz)}
-            </p>
-            {s.lastError && <p className="mt-1 text-xs text-red-600">{s.lastError}</p>}
-          </div>
+            <dl className="space-y-1.5 text-[13px]">
+              <div className="flex items-center gap-2 text-ink-2">
+                <Webhook className="size-3.5 text-ink-3" />
+                <dt>Dernier webhook</dt>
+                <dd className="ml-auto text-ink tabular">{formatDateTime(s.lastEventAt, tz)}</dd>
+              </div>
+              <div className="flex items-center gap-2 text-ink-2">
+                <RefreshCw className="size-3.5 text-ink-3" />
+                <dt>Synchro de nuit</dt>
+                <dd className="ml-auto text-ink tabular">{formatDateTime(s.lastFullSync, tz)}</dd>
+              </div>
+            </dl>
+            {s.lastError && (
+              <p className="mt-3 flex gap-2 rounded-lg bg-signal-soft p-2.5 text-xs text-signal">
+                <CircleAlert className="mt-px size-3.5 shrink-0" />
+                {s.lastError}
+              </p>
+            )}
+          </Card>
         ))}
       </div>
     </>

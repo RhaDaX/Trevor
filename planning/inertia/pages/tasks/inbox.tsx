@@ -1,98 +1,134 @@
 import { Head, Link, router } from '@inertiajs/react'
+import {
+  CalendarDays,
+  CalendarPlus,
+  Inbox,
+  Mail,
+  Paperclip,
+  Trash2,
+  TriangleAlert,
+  UserRoundPlus,
+} from 'lucide-react'
 import { useState } from 'react'
 import type { ClientDto, TaskDto } from '~/lib/types'
-import { formatDue, useTimezone } from '~/lib/format'
+import { formatDue, ORIGIN_LABELS, plural, useTimezone } from '~/lib/format'
 import { CheckButton } from '~/components/task_row'
 import { SnoozeButtons } from '~/components/snooze_menu'
-import CompanyBadge from '~/components/company_badge'
 import ClientPicker from '~/components/client_picker'
+import { Button, CompanyDot, EmptyState, PageHeader, cx, inputClass } from '~/components/ui'
 
 function InboxCard({ task, suggestions }: { task: TaskDto; suggestions: ClientDto[] }) {
   const tz = useTimezone()
-  const [picking, setPicking] = useState(false)
-  const [dating, setDating] = useState(false)
+  const [panel, setPanel] = useState<'date' | 'client' | null>(null)
   const [date, setDate] = useState('')
+  const [leaving, setLeaving] = useState(false)
 
   const attach = (clientId: number | null) =>
     router.post(`/tasks/${task.id}/client`, { client_id: clientId }, { preserveScroll: true })
 
   return (
-    <li className="rounded-xl border border-stone-200 bg-white p-4">
-      <div className="flex items-start gap-3">
-        <CheckButton task={task} />
+    <li
+      data-task-id={task.id}
+      tabIndex={-1}
+      className={cx(
+        'animate-rise rounded-2xl bg-surface shadow-sm ring-1 ring-line outline-none focus-visible:ring-2 focus-visible:ring-focus',
+        leaving && 'row-leave'
+      )}
+    >
+      <div className="flex items-start gap-3 p-4 pb-3">
+        <div className="pt-px">
+          <CheckButton task={task} onComplete={() => setLeaving(true)} />
+        </div>
         <div className="min-w-0 flex-1">
-          <Link href={`/tasks/${task.id}`} className="text-[15px] font-medium leading-snug">
+          <Link
+            href={`/tasks/${task.id}`}
+            data-open
+            className="block text-[15px] leading-[1.4] font-medium text-ink hover:underline hover:underline-offset-2"
+          >
             {task.title}
           </Link>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-            <span className="rounded bg-stone-100 px-1 uppercase tracking-wide">{task.origin}</span>
-            {task.dueAt && <span>📅 {formatDue(task.dueAt, task.allDay, tz)}</span>}
-            {task.client && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3 tabular">
+            <span className="inline-flex items-center gap-1">
+              {task.origin === 'mail' && <Mail className="size-3.5" />}
+              via {ORIGIN_LABELS[task.origin]}
+            </span>
+            {task.dueAt && (
               <span className="inline-flex items-center gap-1">
-                <CompanyBadge company={task.client.company} /> {task.client.name}
+                <CalendarDays className="size-3.5" />
+                {formatDue(task.dueAt, task.allDay, tz)}
               </span>
             )}
-            {task.attachments.length > 0 && <span>📎 {task.attachments.length}</span>}
+            {task.client && (
+              <span className="inline-flex items-center gap-1.5 text-ink-2">
+                <CompanyDot company={task.client.company} /> {task.client.name}
+              </span>
+            )}
+            {task.attachments.length > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Paperclip className="size-3.5" />
+                {task.attachments.length}
+              </span>
+            )}
           </div>
-          {task.notes && <p className="mt-2 line-clamp-2 text-sm text-stone-500">{task.notes}</p>}
+          {task.notes && (
+            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink-2">{task.notes}</p>
+          )}
         </div>
       </div>
 
       {task.clientUncertain && suggestions.length > 0 && (
-        <div className="mt-3 rounded-lg bg-amber-50 p-2.5 text-sm">
-          <p className="mb-1.5 text-xs font-medium text-amber-800">
-            Client incertain — c'est lequel ?
+        <div className="mx-4 mb-3 rounded-xl bg-amber-soft p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-amber-ink">
+            <TriangleAlert className="size-3.5" />
+            Plusieurs clients possibles — lequel ?
           </p>
           <div className="flex flex-wrap gap-1.5">
             {suggestions.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => attach(c.id)}
-                className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-xs hover:bg-amber-100"
-              >
-                <CompanyBadge company={c.company} /> {c.name}
-              </button>
+              <Button key={c.id} size="sm" onClick={() => attach(c.id)}>
+                <CompanyDot company={c.company} />
+                {c.name}
+              </Button>
             ))}
-            <button
-              type="button"
-              onClick={() => attach(null)}
-              className="px-2 py-1 text-xs text-stone-500 hover:underline"
-            >
+            <Button size="sm" variant="ghost" onClick={() => attach(null)}>
               Aucun
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-line px-3 py-2.5">
         {!task.dueAt && <SnoozeButtons taskId={task.id} compact />}
-        <button
-          type="button"
-          onClick={() => setDating((v) => !v)}
-          className="rounded-md border border-stone-200 px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-100"
+        <Button
+          size="sm"
+          variant={panel === 'date' ? 'primary' : 'secondary'}
+          onClick={() => setPanel(panel === 'date' ? null : 'date')}
         >
-          📅 Dater
-        </button>
-        <button
-          type="button"
-          onClick={() => setPicking((v) => !v)}
-          className="rounded-md border border-stone-200 px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-100"
+          <CalendarPlus className="size-3.5" />
+          Dater
+        </Button>
+        <Button
+          size="sm"
+          variant={panel === 'client' ? 'primary' : 'secondary'}
+          onClick={() => setPanel(panel === 'client' ? null : 'client')}
         >
-          👥 Client
-        </button>
-        <button
-          type="button"
+          <UserRoundPlus className="size-3.5" />
+          Client
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          className="ml-auto"
+          aria-label="Supprimer"
           onClick={() => router.delete(`/tasks/${task.id}`, { preserveScroll: true })}
-          className="ml-auto rounded-md px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
         >
-          Supprimer
-        </button>
+          <Trash2 className="size-3.5" />
+          <span className="hidden sm:inline">Supprimer</span>
+        </Button>
       </div>
 
-      {dating && (
+      {panel === 'date' && (
         <form
-          className="mt-2 flex gap-2"
+          className="flex animate-pop-in gap-2 border-t border-line p-3"
           onSubmit={(e) => {
             e.preventDefault()
             if (date)
@@ -103,16 +139,17 @@ function InboxCard({ task, suggestions }: { task: TaskDto; suggestions: ClientDt
             type="datetime-local"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="flex-1 rounded-lg border border-stone-300 px-2 py-1.5 text-sm"
+            aria-label="Date et heure"
+            className={inputClass + ' h-10'}
             required
           />
-          <button className="rounded-lg bg-stone-900 px-3 text-sm font-semibold text-white">
-            OK
-          </button>
+          <Button type="submit" variant="primary">
+            Valider
+          </Button>
         </form>
       )}
-      {picking && (
-        <div className="mt-2">
+      {panel === 'client' && (
+        <div className="border-t border-line p-3">
           <ClientPicker onPick={(c) => attach(c.id)} />
         </div>
       )}
@@ -120,7 +157,7 @@ function InboxCard({ task, suggestions }: { task: TaskDto; suggestions: ClientDt
   )
 }
 
-export default function Inbox({
+export default function InboxPage({
   tasks,
   suggestions,
 }: {
@@ -130,14 +167,19 @@ export default function Inbox({
   return (
     <>
       <Head title="À trier" />
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">À trier</h1>
-      <p className="mb-5 text-sm text-stone-500">
-        Chaque tâche se traite en un geste : dater, reporter, rattacher à un client, supprimer.
-      </p>
+      <PageHeader
+        title="À trier"
+        description={
+          tasks.length
+            ? `${plural(tasks.length, 'tâche', 'tâches')} sans date ou sans client sûr. Une décision chacune : dater, reporter, rattacher, supprimer.`
+            : undefined
+        }
+      />
       {!tasks.length ? (
-        <div className="rounded-xl border border-dashed border-stone-300 px-4 py-10 text-center text-sm text-stone-500">
-          🎉 Boîte vide.
-        </div>
+        <EmptyState icon={<Inbox className="size-8" strokeWidth={1.5} />} title="Boîte vide">
+          Tout est trié. Les tâches sans date atterrissent ici et reviennent chaque matin dans le
+          récap.
+        </EmptyState>
       ) : (
         <ul className="space-y-3">
           {tasks.map((t) => (

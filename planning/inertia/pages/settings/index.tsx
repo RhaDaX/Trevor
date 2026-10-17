@@ -1,5 +1,17 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react'
-import { useEffect, useState } from 'react'
+import {
+  AlarmClock,
+  BellRing,
+  CalendarSync,
+  Check,
+  Copy as CopyIcon,
+  KeyRound,
+  Mic,
+  Monitor,
+  Smartphone,
+  Trash2,
+} from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { SharedProps } from '~/lib/types'
 import { formatDateTime, useTimezone } from '~/lib/format'
 import {
@@ -9,6 +21,7 @@ import {
   isStandalone,
   pushSupported,
 } from '~/lib/push'
+import { Button, Card, Field, PageHeader, inputClass } from '~/components/ui'
 
 interface Props {
   settings: {
@@ -31,89 +44,138 @@ interface Props {
   }
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function SettingsSection({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: typeof BellRing
+  title: string
+  description?: ReactNode
+  children: ReactNode
+}) {
   return (
-    <section className="mb-5 rounded-xl border border-stone-200 bg-white p-4 sm:p-5">
-      <h2 className="mb-3 font-semibold">{title}</h2>
-      {children}
+    <section className="grid gap-4 border-t border-line py-8 first-of-type:border-t-0 first-of-type:pt-0 lg:grid-cols-[220px_1fr] lg:gap-8">
+      <div>
+        <h2 className="flex items-center gap-2 font-display text-[17px] font-semibold">
+          <Icon className="size-[18px] text-ink-3" strokeWidth={1.85} />
+          {title}
+        </h2>
+        {description && (
+          <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">{description}</p>
+        )}
+      </div>
+      <div className="min-w-0">{children}</div>
     </section>
   )
 }
 
-function Copy({ value }: { value: string }) {
+function CopyField({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <div className="flex gap-2">
       <input
         readOnly
         value={value}
-        className="min-w-0 flex-1 rounded-lg border border-stone-300 bg-stone-50 px-3 py-1.5 font-mono text-xs"
+        aria-label={label}
+        onFocus={(e) => e.target.select()}
+        className={inputClass + ' h-10 bg-sunken font-mono text-[13px]'}
       />
-      <button
-        type="button"
+      <Button
         onClick={() => {
           navigator.clipboard.writeText(value)
           setCopied(true)
-          setTimeout(() => setCopied(false), 1500)
+          setTimeout(() => setCopied(false), 1600)
         }}
-        className="rounded-lg border border-stone-300 px-3 text-xs font-medium hover:bg-stone-50"
+        aria-label={`Copier ${label}`}
       >
-        {copied ? 'Copié ✓' : 'Copier'}
-      </button>
+        {copied ? <Check className="size-4 text-done" /> : <CopyIcon className="size-4" />}
+        {copied ? 'Copié' : 'Copier'}
+      </Button>
     </div>
   )
 }
 
-function PushCard({ push }: { push: Props['push'] }) {
+function deviceIcon(ua: string | null) {
+  return /iPhone|iPad|Android/i.test(ua ?? '') ? Smartphone : Monitor
+}
+
+function deviceName(ua: string | null) {
+  if (!ua) return 'Appareil'
+  if (/iPhone/.test(ua)) return 'iPhone'
+  if (/iPad/.test(ua)) return 'iPad'
+  if (/Macintosh/.test(ua))
+    return /Firefox/.test(ua)
+      ? 'Mac · Firefox'
+      : /Chrome/.test(ua)
+        ? 'Mac · Chrome'
+        : 'Mac · Safari'
+  if (/Android/.test(ua)) return 'Android'
+  return 'Navigateur'
+}
+
+function PushSection({ push }: { push: Props['push'] }) {
+  const tz = useTimezone()
   const [state, setState] = useState<'unknown' | 'on' | 'off' | 'unsupported'>('unknown')
   const [error, setError] = useState<string | null>(null)
+  const iphone = typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent)
 
   useEffect(() => {
     if (!pushSupported()) return setState('unsupported')
     currentSubscription().then((s) => setState(s ? 'on' : 'off'))
   }, [])
 
-  const iphone = /iPhone|iPad/.test(navigator.userAgent)
-
   return (
-    <Card title="Notifications push">
-      {!push.enabled && (
-        <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Clés VAPID absentes côté serveur : lancez <code>node ace vapid:generate</code> et
-          renseignez le .env.
-        </p>
-      )}
-      {iphone && !isStandalone() && (
-        <p className="mb-2 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">
-          Sur iPhone, ajoutez d'abord l'app à l'écran d'accueil (Partager → « Sur l'écran d'accueil
-          »), puis ouvrez-la depuis l'icône pour activer les notifications.
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        {state === 'off' && push.publicKey && (
-          <button
-            type="button"
-            className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white"
-            onClick={async () => {
-              try {
-                setError(null)
-                await enablePush(push.publicKey!)
-                setState('on')
-                router.reload({ only: ['push'] })
-              } catch (e: any) {
-                setError(e.message)
-              }
-            }}
-          >
-            Activer sur cet appareil
-          </button>
+    <SettingsSection
+      icon={BellRing}
+      title="Notifications"
+      description="Push sur l’iPhone et le Mac, avec report et « fait » directement depuis la notification."
+    >
+      <div className="space-y-3">
+        {!push.enabled && (
+          <p className="rounded-xl bg-amber-soft px-3.5 py-2.5 text-sm text-amber-ink">
+            Clés VAPID absentes côté serveur : lancez{' '}
+            <code className="font-mono text-[13px]">node ace vapid:generate</code> puis renseignez
+            le .env.
+          </p>
         )}
-        {state === 'on' && (
-          <>
-            <span className="text-sm text-emerald-700">✓ Activées sur cet appareil</span>
-            <button
-              type="button"
-              className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+        {iphone && !isStandalone() && (
+          <p className="rounded-xl bg-co-a-soft px-3.5 py-2.5 text-sm text-co-a">
+            Sur iPhone : Partager → <strong>Sur l’écran d’accueil</strong>, puis ouvrez l’app depuis
+            l’icône pour activer les notifications.
+          </p>
+        )}
+        <Card className="flex flex-wrap items-center gap-3 p-4">
+          <span className="flex-1 text-sm">
+            {state === 'on' && (
+              <span className="font-medium text-done">Activées sur cet appareil</span>
+            )}
+            {state === 'off' && <span className="text-ink-2">Désactivées sur cet appareil</span>}
+            {state === 'unsupported' && (
+              <span className="text-ink-3">Non disponibles dans ce navigateur</span>
+            )}
+            {state === 'unknown' && <span className="text-ink-3">…</span>}
+          </span>
+          {state === 'off' && push.publicKey && (
+            <Button
+              variant="primary"
+              onClick={async () => {
+                try {
+                  setError(null)
+                  await enablePush(push.publicKey!)
+                  setState('on')
+                  router.reload({ only: ['push'] })
+                } catch (e: any) {
+                  setError(e.message)
+                }
+              }}
+            >
+              Activer
+            </Button>
+          )}
+          {state === 'on' && (
+            <Button
               onClick={async () => {
                 await disablePush()
                 setState('off')
@@ -121,40 +183,46 @@ function PushCard({ push }: { push: Props['push'] }) {
               }}
             >
               Désactiver
-            </button>
-          </>
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            onClick={() => router.post('/settings/push/test', {}, { preserveScroll: true })}
+          >
+            Envoyer un test
+          </Button>
+        </Card>
+        {error && <p className="text-sm text-signal">{error}</p>}
+        {push.devices.length > 0 && (
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-surface ring-1 ring-line">
+            {push.devices.map((d) => {
+              const Icon = deviceIcon(d.userAgent)
+              return (
+                <li key={d.id} className="flex h-12 items-center gap-3 px-4 text-sm">
+                  <Icon className="size-4 text-ink-3" strokeWidth={1.75} />
+                  <span className="flex-1 text-ink">{deviceName(d.userAgent)}</span>
+                  <span className="text-xs text-ink-3 tabular">
+                    depuis le {formatDateTime(d.createdAt, tz)}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Retirer cet appareil"
+                    onClick={() => router.delete(`/push/devices/${d.id}`, { preserveScroll: true })}
+                    className="flex size-8 items-center justify-center rounded-lg text-ink-3 hover:bg-signal-soft hover:text-signal"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
         )}
-        {state === 'unsupported' && (
-          <span className="text-sm text-stone-500">Non disponible dans ce navigateur.</span>
-        )}
-        <button
-          type="button"
-          className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-          onClick={() => router.post('/settings/push/test', {}, { preserveScroll: true })}
-        >
-          Envoyer un test
-        </button>
       </div>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      {push.devices.length > 0 && (
-        <ul className="mt-3 divide-y divide-stone-100 text-xs text-stone-500">
-          {push.devices.map((d) => (
-            <li key={d.id} className="flex items-center justify-between py-1.5">
-              <span className="truncate">{d.userAgent ?? 'Appareil'}</span>
-              <button
-                type="button"
-                className="ml-2 text-red-600"
-                onClick={() => router.delete(`/push/devices/${d.id}`, { preserveScroll: true })}
-              >
-                retirer
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+    </SettingsSection>
   )
 }
+
+const hours = Array.from({ length: 24 }, (_, h) => h)
 
 export default function Settings({ settings, calendarUrl, apiUrl, tokens, push }: Props) {
   const tz = useTimezone()
@@ -171,214 +239,240 @@ export default function Settings({ settings, calendarUrl, apiUrl, tokens, push }
   })
   const tokenForm = useForm({ name: '' })
   const num =
-    (key: keyof typeof form.data) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    (key: keyof typeof form.data) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
       form.setData(key, Number(e.target.value) as never)
+  const recapTime = `${String(form.data.recap_hour).padStart(2, '0')}:${String(form.data.recap_minute).padStart(2, '0')}`
 
   return (
     <>
       <Head title="Réglages" />
-      <h1 className="mb-5 text-2xl font-bold tracking-tight">Réglages</h1>
+      <PageHeader title="Réglages" />
 
-      <Card title="Rappels">
+      <SettingsSection
+        icon={UserRound}
+        title="Rappels"
+        description="Une tâche en retard revient jusqu’à être cochée ou reportée."
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault()
             form.put('/settings', { preserveScroll: true })
           }}
-          className="grid gap-4 text-sm sm:grid-cols-2"
         >
-          <label className="block">
-            <span className="text-stone-600">Nom</span>
-            <input
-              value={form.data.full_name}
-              onChange={(e) => form.setData('full_name', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            />
-          </label>
-          <label className="block">
-            <span className="text-stone-600">Fuseau horaire</span>
-            <input
-              value={form.data.timezone}
-              onChange={(e) => form.setData('timezone', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            />
-            {errors.timezone && (
-              <span className="text-xs text-red-600">{String(errors.timezone)}</span>
-            )}
-          </label>
-          <label className="block">
-            <span className="text-stone-600">Relance d'une tâche en retard</span>
-            <select
-              value={form.data.nag_interval_minutes}
-              onChange={num('nag_interval_minutes')}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            >
-              <option value={0}>Jamais</option>
-              <option value={30}>Toutes les 30 min</option>
-              <option value={60}>Toutes les heures</option>
-              <option value={120}>Toutes les 2 h</option>
-              <option value={240}>Toutes les 4 h</option>
-              <option value={1440}>Une fois par jour</option>
-            </select>
-          </label>
-          <div className="block">
-            <span className="text-stone-600">Plage des relances (jours ouvrés)</span>
-            <div className="mt-1 flex items-center gap-2">
+          <Card className="grid gap-5 p-5 sm:grid-cols-2">
+            <Field label="Nom">
               <input
-                type="number"
-                min={0}
-                max={23}
-                value={form.data.nag_start_hour}
-                onChange={num('nag_start_hour')}
-                className="w-20 rounded-lg border border-stone-300 px-3 py-2"
+                value={form.data.full_name}
+                onChange={(e) => form.setData('full_name', e.target.value)}
+                className={inputClass + ' h-10'}
               />
-              h →
+            </Field>
+            <Field label="Fuseau horaire" error={errors.timezone}>
               <input
-                type="number"
-                min={1}
-                max={24}
-                value={form.data.nag_end_hour}
-                onChange={num('nag_end_hour')}
-                className="w-20 rounded-lg border border-stone-300 px-3 py-2"
+                value={form.data.timezone}
+                onChange={(e) => form.setData('timezone', e.target.value)}
+                className={inputClass + ' h-10'}
               />
-              h
-            </div>
-          </div>
-          <div className="block">
-            <span className="text-stone-600">Récap du matin (mail + push)</span>
-            <div className="mt-1 flex items-center gap-2">
-              <input
-                type="number"
-                min={0}
-                max={23}
-                value={form.data.recap_hour}
-                onChange={num('recap_hour')}
-                className="w-20 rounded-lg border border-stone-300 px-3 py-2"
-              />
-              h
-              <input
-                type="number"
-                min={0}
-                max={59}
-                step={5}
-                value={form.data.recap_minute}
-                onChange={num('recap_minute')}
-                className="w-20 rounded-lg border border-stone-300 px-3 py-2"
-              />
-            </div>
-          </div>
-          <div className="flex items-end justify-end sm:col-span-2">
-            <button
-              disabled={form.processing || !form.isDirty}
-              className="rounded-lg bg-stone-900 px-4 py-2 font-semibold text-white disabled:opacity-40"
-            >
-              Enregistrer
-            </button>
-          </div>
-        </form>
-      </Card>
-
-      <PushCard push={push} />
-
-      <Card title="Calendrier (iCal)">
-        <p className="mb-2 text-sm text-stone-600">
-          Calendrier → Fichier → Nouvel abonnement (Mac) ou Réglages → Calendrier → Comptes →
-          Ajouter un calendrier avec abonnement (iPhone). Chaque tâche datée devient un événement
-          avec alerte.
-        </p>
-        <Copy value={calendarUrl} />
-        <button
-          type="button"
-          onClick={() =>
-            confirm("L'ancienne adresse cessera de fonctionner. Continuer ?") &&
-            router.post('/settings/calendar', {}, { preserveScroll: true })
-          }
-          className="mt-2 text-xs text-stone-500 hover:text-red-600"
-        >
-          Régénérer l'adresse secrète
-        </button>
-      </Card>
-
-      <Card title="Jetons d'API (Siri, Raycast, Raccourci Mac)">
-        {flash.newToken && (
-          <div className="mb-3 rounded-lg bg-emerald-50 p-3 text-sm">
-            <p className="mb-1 font-medium text-emerald-800">
-              Jeton « {flash.newToken.name} » — copiez-le, il ne sera plus affiché :
-            </p>
-            <Copy value={flash.newToken.value} />
-          </div>
-        )}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            tokenForm.post('/settings/tokens', {
-              preserveScroll: true,
-              onSuccess: () => tokenForm.reset(),
-            })
-          }}
-          className="mb-3 flex gap-2"
-        >
-          <input
-            value={tokenForm.data.name}
-            onChange={(e) => tokenForm.setData('name', e.target.value)}
-            placeholder="Nom de l'appareil (iPhone, Mac…)"
-            className="min-w-0 flex-1 rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-            required
-          />
-          <button className="rounded-lg bg-stone-900 px-3 text-sm font-semibold text-white">
-            Créer
-          </button>
-        </form>
-        <ul className="divide-y divide-stone-100 text-sm">
-          {tokens.map((t) => (
-            <li key={t.id} className="flex items-center justify-between py-2">
-              <span>
-                {t.name}
-                <span className="ml-2 text-xs text-stone-400">
-                  {t.lastUsedAt
-                    ? `utilisé le ${formatDateTime(t.lastUsedAt, tz)}`
-                    : 'jamais utilisé'}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  confirm('Révoquer ce jeton ?') &&
-                  router.delete(`/settings/tokens/${t.id}`, { preserveScroll: true })
-                }
-                className="text-xs text-red-600"
+            </Field>
+            <Field label="Relance d’une tâche en retard">
+              <select
+                value={form.data.nag_interval_minutes}
+                onChange={num('nag_interval_minutes')}
+                className={inputClass + ' h-10'}
               >
-                Révoquer
-              </button>
-            </li>
-          ))}
-        </ul>
-        <details className="mt-3 text-sm text-stone-600">
-          <summary className="cursor-pointer font-medium">
-            Configurer le raccourci Siri « Ajoute une tâche »
-          </summary>
-          <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>App Raccourcis → nouveau raccourci nommé « Ajoute une tâche ».</li>
-            <li>Action « Dicter le texte » (langue : français).</li>
+                <option value={0}>Jamais</option>
+                <option value={30}>Toutes les 30 min</option>
+                <option value={60}>Toutes les heures</option>
+                <option value={120}>Toutes les 2 h</option>
+                <option value={240}>Toutes les 4 h</option>
+                <option value={1440}>Une fois par jour</option>
+              </select>
+            </Field>
+            <Field label="Plage des relances" hint="Jours ouvrés uniquement">
+              <div className="flex items-center gap-2">
+                <select
+                  value={form.data.nag_start_hour}
+                  onChange={num('nag_start_hour')}
+                  aria-label="Début"
+                  className={inputClass + ' h-10'}
+                >
+                  {hours.map((h) => (
+                    <option key={h} value={h}>
+                      {h} h
+                    </option>
+                  ))}
+                </select>
+                <span className="text-ink-3">à</span>
+                <select
+                  value={form.data.nag_end_hour}
+                  onChange={num('nag_end_hour')}
+                  aria-label="Fin"
+                  className={inputClass + ' h-10'}
+                >
+                  {hours
+                    .slice(1)
+                    .concat(24)
+                    .map((h) => (
+                      <option key={h} value={h}>
+                        {h} h
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </Field>
+            <Field label="Récap du matin" hint="Mail + push : retards, journée, à trier">
+              <input
+                type="time"
+                value={recapTime}
+                step={300}
+                onChange={(e) => {
+                  const [h, m] = e.target.value.split(':').map(Number)
+                  form.setData((d) => ({ ...d, recap_hour: h || 0, recap_minute: m || 0 }))
+                }}
+                className={inputClass + ' h-10 tabular'}
+              />
+            </Field>
+            <div className="flex items-end justify-end">
+              <Button type="submit" variant="primary" disabled={form.processing || !form.isDirty}>
+                Enregistrer
+              </Button>
+            </div>
+          </Card>
+        </form>
+      </SettingsSection>
+
+      <PushSection push={push} />
+
+      <SettingsSection
+        icon={CalendarSync}
+        title="Calendrier"
+        description="Chaque tâche datée devient un événement avec alerte native dans Calendrier."
+      >
+        <div className="space-y-3">
+          <CopyField value={calendarUrl} label="l’adresse iCal" />
+          <ol className="space-y-1.5 text-[13px] leading-relaxed text-ink-2">
             <li>
-              Action « Obtenir le contenu de l'URL » : <code className="text-xs">{apiUrl}</code>,
-              méthode POST, en-têtes{' '}
-              <code className="text-xs">Authorization: Bearer &lt;jeton&gt;</code> et{' '}
-              <code className="text-xs">X-Planning-Origin: siri</code>, corps JSON{' '}
-              <code className="text-xs">text = Texte dicté</code>.
+              <span className="font-medium text-ink">Mac</span> — Calendrier › Fichier › Nouvel
+              abonnement à un calendrier
             </li>
             <li>
-              Action « Obtenir la valeur du dictionnaire » clé{' '}
-              <code className="text-xs">message</code>, puis « Énoncer ».
+              <span className="font-medium text-ink">iPhone</span> — Réglages › Calendrier › Comptes
+              › Ajouter un compte › Autre › Calendrier avec abonnement
             </li>
           </ol>
-          <p className="mt-2">
-            Mac : même raccourci avec « Demander une entrée » au lieu de la dictée, origine{' '}
-            <code className="text-xs">mac</code>, et un raccourci clavier global dans ses réglages —
-            ou le script Raycast fourni dans <code className="text-xs">extras/raycast</code>.
-          </p>
-        </details>
-      </Card>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="-ml-2.5"
+            onClick={() =>
+              confirm("L'ancienne adresse cessera de fonctionner. Continuer ?") &&
+              router.post('/settings/calendar', {}, { preserveScroll: true })
+            }
+          >
+            Régénérer l’adresse secrète
+          </Button>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        icon={KeyRound}
+        title="Jetons d’API"
+        description="Un jeton par appareil pour Siri, Raycast ou le raccourci Mac. Révocable à tout moment."
+      >
+        <div className="space-y-3">
+          {flash.newToken && (
+            <div className="animate-rise rounded-2xl bg-done-soft p-4">
+              <p className="mb-2 text-sm font-medium text-done">
+                Jeton « {flash.newToken.name} » créé — copiez-le maintenant, il ne sera plus
+                affiché.
+              </p>
+              <CopyField value={flash.newToken.value} label="le jeton" />
+            </div>
+          )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              tokenForm.post('/settings/tokens', {
+                preserveScroll: true,
+                onSuccess: () => tokenForm.reset(),
+              })
+            }}
+            className="flex gap-2"
+          >
+            <input
+              value={tokenForm.data.name}
+              onChange={(e) => tokenForm.setData('name', e.target.value)}
+              placeholder="Nom de l’appareil : iPhone, Mac…"
+              aria-label="Nom de l’appareil"
+              className={inputClass + ' h-10'}
+              required
+            />
+            <Button type="submit" variant="primary" disabled={tokenForm.processing}>
+              Créer
+            </Button>
+          </form>
+          {tokens.length > 0 && (
+            <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-surface ring-1 ring-line">
+              {tokens.map((t) => (
+                <li key={t.id} className="flex h-14 items-center gap-3 px-4">
+                  <KeyRound className="size-4 text-ink-3" strokeWidth={1.75} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-ink">{t.name}</span>
+                    <span className="block text-xs text-ink-3 tabular">
+                      {t.lastUsedAt
+                        ? `Utilisé le ${formatDateTime(t.lastUsedAt, tz)}`
+                        : 'Jamais utilisé'}
+                    </span>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() =>
+                      confirm('Révoquer ce jeton ?') &&
+                      router.delete(`/settings/tokens/${t.id}`, { preserveScroll: true })
+                    }
+                  >
+                    Révoquer
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <details className="group rounded-2xl bg-sunken/70 p-4 text-[13px] leading-relaxed text-ink-2 ring-1 ring-line">
+            <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-ink">
+              <Mic className="size-4 text-ink-3" />
+              Configurer « Dis Siri, ajoute une tâche »
+              <span className="ml-auto text-ink-3 transition-transform group-open:rotate-90">
+                ›
+              </span>
+            </summary>
+            <ol className="mt-3 list-decimal space-y-1.5 pl-5 marker:text-ink-3">
+              <li>App Raccourcis › nouveau raccourci nommé « Ajoute une tâche ».</li>
+              <li>Action « Dicter le texte », langue français.</li>
+              <li>
+                « Obtenir le contenu de l’URL » :{' '}
+                <code className="font-mono text-xs text-ink">{apiUrl}</code>, méthode POST, en-têtes{' '}
+                <code className="font-mono text-xs text-ink">
+                  Authorization: Bearer &lt;jeton&gt;
+                </code>{' '}
+                et <code className="font-mono text-xs text-ink">X-Planning-Origin: siri</code>,
+                corps JSON <code className="font-mono text-xs text-ink">text</code> = Texte dicté.
+              </li>
+              <li>
+                « Obtenir la valeur du dictionnaire » clé{' '}
+                <code className="font-mono text-xs text-ink">message</code>, puis « Énoncer ».
+              </li>
+            </ol>
+            <p className="mt-3">
+              Sur Mac : même raccourci avec « Demander une entrée », origine{' '}
+              <code className="font-mono text-xs text-ink">mac</code> et un raccourci clavier global
+              — ou le script Raycast de{' '}
+              <code className="font-mono text-xs text-ink">extras/raycast</code>.
+            </p>
+          </details>
+        </div>
+      </SettingsSection>
     </>
   )
 }

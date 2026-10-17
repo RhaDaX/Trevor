@@ -1,54 +1,66 @@
 import { Head, useForm, usePage } from '@inertiajs/react'
+import { ArrowRight } from 'lucide-react'
 import type { SharedProps } from '~/lib/types'
+import { Button, Field, inputClass } from '~/components/ui'
 
 export default function Login() {
   const { flash } = usePage<SharedProps & Record<string, unknown>>().props
   const form = useForm({ email: '', password: '' })
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-12">
       <Head title="Connexion" />
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          form.post('/login')
-        }}
-        className="w-full max-w-sm space-y-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
-      >
-        <h1 className="text-xl font-bold">Planning</h1>
-        {flash.error && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{flash.error}</p>
-        )}
-        <label className="block text-sm">
-          <span className="text-stone-600">Email</span>
-          <input
-            type="email"
-            autoComplete="username"
-            value={form.data.email}
-            onChange={(e) => form.setData('email', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 outline-none focus:border-stone-500"
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-stone-600">Mot de passe</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={form.data.password}
-            onChange={(e) => form.setData('password', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 outline-none focus:border-stone-500"
-            required
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={form.processing}
-          className="w-full rounded-lg bg-stone-900 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+      <div className="w-full max-w-[360px] animate-rise">
+        <img src="/icons/icon.svg" alt="" className="mb-8 size-11 rounded-xl shadow-md" />
+        <h1 className="font-display text-[30px] leading-tight font-semibold tracking-[-0.02em]">
+          Bon retour.
+        </h1>
+        <p className="mt-2 mb-8 text-[15px] text-ink-2">Plus rien ne tombe entre les mailles.</p>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            form.post('/login')
+          }}
+          className="space-y-4"
         >
-          Se connecter
-        </button>
-      </form>
+          {flash.error && (
+            <p role="alert" className="rounded-xl bg-signal-soft px-3.5 py-2.5 text-sm text-signal">
+              {flash.error}
+            </p>
+          )}
+          <Field label="Email">
+            <input
+              type="email"
+              autoComplete="username"
+              autoFocus
+              value={form.data.email}
+              onChange={(e) => form.setData('email', e.target.value)}
+              className={inputClass + ' h-11'}
+              required
+            />
+          </Field>
+          <Field label="Mot de passe">
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={form.data.password}
+              onChange={(e) => form.setData('password', e.target.value)}
+              className={inputClass + ' h-11'}
+              required
+            />
+          </Field>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={form.processing}
+            className="h-11 w-full"
+          >
+            Se connecter
+            <ArrowRight className="size-4" />
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }

@@ -101,3 +101,16 @@ export const ORIGIN_LABELS: Record<string, string> = {
   app: 'App',
   crm: 'CRM',
 }
+
+export function todayLabel(timezone: string) {
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: timezone,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date())
+}
+
+export function plural(n: number, one: string, many: string) {
+  return `${n} ${n > 1 ? many : one}`
+}

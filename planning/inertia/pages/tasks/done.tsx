@@ -1,16 +1,23 @@
 import { Head } from '@inertiajs/react'
+import { CircleCheckBig } from 'lucide-react'
 import type { TaskDto } from '~/lib/types'
-import { EmptyState, TaskList } from '~/components/task_row'
+import { TaskList } from '~/components/task_row'
+import { EmptyState, PageHeader } from '~/components/ui'
 
 export default function Done({ tasks }: { tasks: TaskDto[] }) {
   return (
     <>
       <Head title="Terminées" />
-      <h1 className="mb-5 text-2xl font-bold tracking-tight">Terminées</h1>
+      <PageHeader title="Terminées" description="Les 150 dernières, la plus récente en premier." />
       {tasks.length ? (
         <TaskList tasks={tasks} showDate={false} />
       ) : (
-        <EmptyState>Rien de terminé pour l'instant.</EmptyState>
+        <EmptyState
+          icon={<CircleCheckBig className="size-8" strokeWidth={1.5} />}
+          title="Encore rien de coché"
+        >
+          Les tâches faites atterrissent ici.
+        </EmptyState>
       )}
     </>
   )

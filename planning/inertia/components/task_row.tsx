@@ -1,45 +1,86 @@
 import { Link, router } from '@inertiajs/react'
+import { BellRing, Hourglass, Paperclip, Repeat2, TriangleAlert } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import type { TaskDto } from '~/lib/types'
-import { formatDue, useTimezone } from '~/lib/format'
-import CompanyBadge from '~/components/company_badge'
+import { formatDue, ORIGIN_LABELS, useTimezone } from '~/lib/format'
+import { CompanyDot, cx } from '~/components/ui'
 import SnoozeMenu from '~/components/snooze_menu'
 
-export function CheckButton({ task }: { task: TaskDto }) {
-  const done = task.status === 'done'
+/**
+ * Coche ronde. La complétion est optimiste : la coche se dessine,
+ * la ligne glisse puis la requête part.
+ */
+export function CheckButton({ task, onComplete }: { task: TaskDto; onComplete?: () => void }) {
+  const [checking, setChecking] = useState(false)
+  const done = task.status === 'done' || checking
+  const high = task.priority === 'high'
+
+  const toggle = () => {
+    if (task.status === 'done') {
+      router.post(`/tasks/${task.id}/reopen`, {}, { preserveScroll: true })
+      return
+    }
+    if (checking) return
+    setChecking(true)
+    onComplete?.()
+    setTimeout(
+      () =>
+        router.post(
+          `/tasks/${task.id}/complete`,
+          {},
+          { preserveScroll: true, onError: () => setChecking(false) }
+        ),
+      520
+    )
+  }
+
   return (
     <button
       type="button"
-      title={done ? 'Rouvrir' : 'Marquer comme fait'}
-      onClick={() =>
-        router.post(
-          `/tasks/${task.id}/${done ? 'reopen' : 'complete'}`,
-          {},
-          { preserveScroll: true }
-        )
-      }
-      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
-        done
-          ? 'border-emerald-500 bg-emerald-500 text-white'
-          : task.priority === 'high'
-            ? 'border-red-400 hover:bg-red-50'
-            : 'border-stone-300 hover:border-stone-500'
-      }`}
+      data-check
+      role="checkbox"
+      aria-checked={done}
+      aria-label={done ? `Rouvrir « ${task.title} »` : `Marquer « ${task.title} » comme faite`}
+      onClick={toggle}
+      className="group/check -m-2 flex size-10 shrink-0 items-center justify-center rounded-full"
     >
-      {done && (
-        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
-          <path
-            fillRule="evenodd"
-            d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.58l7.3-7.3a1 1 0 0 1 1.4 0Z"
-            clipRule="evenodd"
-          />
-        </svg>
-      )}
+      <span
+        className={cx(
+          'flex size-[22px] items-center justify-center rounded-full border-[1.75px] transition-all duration-200 ease-out-quart',
+          done
+            ? 'scale-100 border-done bg-done'
+            : high
+              ? 'border-signal group-hover/check:bg-signal-soft'
+              : 'border-line-strong group-hover/check:border-ink-3 group-hover/check:bg-sunken',
+          checking && 'scale-110'
+        )}
+      >
+        {done && (
+          <svg viewBox="0 0 16 16" className="size-3 text-white" fill="none" aria-hidden>
+            <path
+              d="M3.5 8.5l3 3 6-7"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={checking ? 'check-path' : undefined}
+            />
+          </svg>
+        )}
+      </span>
     </button>
   )
 }
 
+function Meta({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cx('inline-flex items-center gap-1', className)}>{children}</span>
+}
+
 export default function TaskRow({ task, showDate = true }: { task: TaskDto; showDate?: boolean }) {
   const tz = useTimezone()
+  const [leaving, setLeaving] = useState(false)
+  const closed = task.status === 'done' || task.status === 'cancelled'
+
   const remindsEarly = Boolean(
     task.remindAt && task.dueAt && task.alarmAt !== task.dueAt && !task.snoozedUntil
   )
@@ -48,52 +89,89 @@ export default function TaskRow({ task, showDate = true }: { task: TaskDto; show
     : null
   const deadline =
     showDate && (remindsEarly || task.snoozedUntil) ? formatDue(task.dueAt, task.allDay, tz) : null
-  const done = task.status === 'done' || task.status === 'cancelled'
 
   return (
-    <li className="group flex items-start gap-3 px-3 py-2.5 hover:bg-stone-50">
-      <CheckButton task={task} />
+    <li
+      data-task-id={task.id}
+      tabIndex={-1}
+      className={cx(
+        'group relative flex items-start gap-3 px-4 py-3 outline-none transition-colors',
+        'hover:bg-sunken/60 focus-visible:bg-sunken focus-visible:outline-none',
+        'focus-visible:before:absolute focus-visible:before:inset-y-1.5 focus-visible:before:left-0 focus-visible:before:w-[3px] focus-visible:before:rounded-r-full focus-visible:before:bg-focus',
+        leaving && 'row-leave'
+      )}
+    >
+      <div className="relative z-10 pt-px">
+        <CheckButton task={task} onComplete={() => setLeaving(true)} />
+      </div>
+
       <div className="min-w-0 flex-1">
         <Link
           href={`/tasks/${task.id}`}
-          className={`block text-[15px] leading-snug ${done ? 'text-stone-400 line-through' : 'text-stone-900'}`}
-        >
-          {task.priority === 'high' && !done && (
-            <span className="mr-1 font-bold text-red-600">!</span>
+          data-open
+          className={cx(
+            'block text-[15px] leading-[1.4] outline-none after:absolute after:inset-0 after:content-[""]',
+            closed || leaving ? 'text-ink-3 line-through decoration-ink-3/60' : 'text-ink'
           )}
+        >
           {task.title}
         </Link>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-stone-500">
-          {due && (
-            <span className={task.overdue ? 'font-semibold text-red-600' : ''}>
-              {task.snoozedUntil ? '⏱ ' : remindsEarly ? '🔔 ' : ''}
-              {due}
-            </span>
+
+        <div className="relative z-10 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3 tabular">
+          {task.priority === 'high' && !closed && (
+            <Meta className="font-semibold text-signal">Urgent</Meta>
           )}
-          {deadline && <span className="text-stone-400">échéance {deadline}</span>}
+          {due && (
+            <Meta className={cx(task.overdue && !closed && 'font-medium text-signal')}>
+              {task.snoozedUntil ? (
+                <Hourglass className="size-3.5" strokeWidth={2} aria-label="Reportée" />
+              ) : remindsEarly ? (
+                <BellRing className="size-3.5" strokeWidth={2} aria-label="Rappel" />
+              ) : null}
+              {due}
+            </Meta>
+          )}
+          {deadline && <Meta>échéance {deadline}</Meta>}
           {task.client ? (
             <Link
               href={`/clients/${task.client.id}`}
-              className="inline-flex items-center gap-1 hover:text-stone-800"
+              className="inline-flex items-center gap-1.5 text-ink-2 hover:text-ink hover:underline hover:underline-offset-2"
             >
-              <CompanyBadge company={task.client.company} />
+              <CompanyDot company={task.client.company} />
               {task.client.name}
             </Link>
-          ) : (
-            <CompanyBadge company={task.company} />
+          ) : task.company ? (
+            <Meta>
+              <CompanyDot company={task.company} />
+              {task.company === 'a' ? 'Entreprise A' : 'Entreprise B'}
+            </Meta>
+          ) : null}
+          {task.clientUncertain && (
+            <Meta className="text-amber-ink">
+              <TriangleAlert className="size-3.5" strokeWidth={2} />
+              client à vérifier
+            </Meta>
           )}
-          {task.clientUncertain && <span className="text-amber-600">client à vérifier</span>}
-          {task.recurrenceLabel && <span>↻ {task.recurrenceLabel.toLowerCase()}</span>}
+          {task.recurrenceLabel && (
+            <Meta>
+              <Repeat2 className="size-3.5" strokeWidth={2} />
+              {task.recurrenceLabel.toLowerCase()}
+            </Meta>
+          )}
+          {task.attachments.length > 0 && (
+            <Meta>
+              <Paperclip className="size-3.5" strokeWidth={2} />
+              {task.attachments.length}
+            </Meta>
+          )}
           {task.origin !== 'app' && (
-            <span className="rounded bg-stone-100 px-1 text-[10px] uppercase tracking-wide text-stone-500">
-              {task.origin}
-            </span>
+            <Meta className="text-ink-3/80">via {ORIGIN_LABELS[task.origin]}</Meta>
           )}
-          {task.attachments.length > 0 && <span>📎 {task.attachments.length}</span>}
         </div>
       </div>
-      {!done && (
-        <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+
+      {!closed && (
+        <div className="relative z-10 -my-1 -mr-2 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
           <SnoozeMenu taskId={task.id} />
         </div>
       )}
@@ -103,7 +181,7 @@ export default function TaskRow({ task, showDate = true }: { task: TaskDto; show
 
 export function TaskList({ tasks, showDate = true }: { tasks: TaskDto[]; showDate?: boolean }) {
   return (
-    <ul className="divide-y divide-stone-100 overflow-visible rounded-xl border border-stone-200 bg-white">
+    <ul className="divide-y divide-line overflow-visible rounded-2xl bg-surface shadow-sm ring-1 ring-line [&>li:first-child]:rounded-t-2xl [&>li:last-child]:rounded-b-2xl">
       {tasks.map((t) => (
         <TaskRow key={t.id} task={t} showDate={showDate} />
       ))}
@@ -116,29 +194,30 @@ export function Section({
   count,
   tone = 'default',
   children,
+  aside,
 }: {
   title: string
   count?: number
   tone?: 'default' | 'danger' | 'warning'
-  children: React.ReactNode
+  children: ReactNode
+  aside?: ReactNode
 }) {
-  const color =
-    tone === 'danger' ? 'text-red-600' : tone === 'warning' ? 'text-amber-600' : 'text-stone-500'
   return (
-    <section className="mb-6">
-      <h2 className={`mb-2 px-1 text-xs font-semibold uppercase tracking-wider ${color}`}>
-        {title}
-        {count !== undefined && <span className="ml-1.5 font-normal text-stone-400">{count}</span>}
-      </h2>
+    <section className="mb-8 animate-rise">
+      <div className="mb-2.5 flex items-center justify-between px-1">
+        <h2
+          className={cx(
+            'flex items-center gap-2 text-[13px] font-semibold',
+            tone === 'danger' ? 'text-signal' : tone === 'warning' ? 'text-amber-ink' : 'text-ink-2'
+          )}
+        >
+          {tone === 'danger' && <span className="size-1.5 rounded-full bg-signal" aria-hidden />}
+          {title}
+          {count !== undefined && <span className="font-medium text-ink-3 tabular">{count}</span>}
+        </h2>
+        {aside}
+      </div>
       {children}
     </section>
-  )
-}
-
-export function EmptyState({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-dashed border-stone-300 px-4 py-8 text-center text-sm text-stone-500">
-      {children}
-    </div>
   )
 }

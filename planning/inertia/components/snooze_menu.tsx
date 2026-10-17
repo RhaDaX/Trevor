@@ -1,13 +1,15 @@
 import { router } from '@inertiajs/react'
+import { AlarmClockPlus, CalendarArrowUp, Clock, Moon, Sunrise } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Button, Kbd, cx } from '~/components/ui'
 
-const PRESETS = [
-  { preset: '1h', label: '+1 h' },
-  { preset: '3h', label: '+3 h' },
-  { preset: 'tonight', label: 'Ce soir' },
-  { preset: 'tomorrow', label: 'Demain' },
-  { preset: 'monday', label: 'Lundi' },
-]
+export const SNOOZE_PRESETS = [
+  { preset: '1h', label: '+1 h', icon: Clock, key: 'h' },
+  { preset: '3h', label: '+3 h', icon: Clock, key: null },
+  { preset: 'tonight', label: 'Ce soir', icon: Moon, key: null },
+  { preset: 'tomorrow', label: 'Demain', icon: Sunrise, key: 'd' },
+  { preset: 'monday', label: 'Lundi', icon: CalendarArrowUp, key: 'l' },
+] as const
 
 export function snooze(taskId: number, preset: string) {
   router.post(`/tasks/${taskId}/snooze`, { preset }, { preserveScroll: true })
@@ -16,19 +18,15 @@ export function snooze(taskId: number, preset: string) {
 /** Boutons de report rapide : +1 h, demain, lundi */
 export function SnoozeButtons({ taskId, compact = false }: { taskId: number; compact?: boolean }) {
   const presets = compact
-    ? PRESETS.filter((p) => ['1h', 'tomorrow', 'monday'].includes(p.preset))
-    : PRESETS
+    ? SNOOZE_PRESETS.filter((p) => ['1h', 'tomorrow', 'monday'].includes(p.preset))
+    : SNOOZE_PRESETS
   return (
     <div className="flex flex-wrap gap-1.5">
       {presets.map((p) => (
-        <button
-          key={p.preset}
-          type="button"
-          onClick={() => snooze(taskId, p.preset)}
-          className="rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-100 active:bg-stone-200"
-        >
+        <Button key={p.preset} size="sm" onClick={() => snooze(taskId, p.preset)}>
+          <p.icon className="size-3.5 text-ink-3" strokeWidth={2} />
           {p.label}
-        </button>
+        </Button>
       ))}
     </div>
   )
@@ -43,39 +41,52 @@ export default function SnoozeMenu({ taskId }: { taskId: number }) {
     const close = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false)
     }
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', esc)
+    }
   }, [open])
 
   return (
     <div className="relative" ref={ref}>
       <button
         type="button"
-        title="Reporter"
+        aria-label="Reporter"
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="rounded-md p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+        className={cx(
+          'flex size-9 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-sunken hover:text-ink',
+          open && 'bg-sunken text-ink'
+        )}
       >
-        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-          <path
-            fillRule="evenodd"
-            d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .2.08.39.22.53l3 3a.75.75 0 1 0 1.06-1.06l-2.78-2.78V5Z"
-            clipRule="evenodd"
-          />
-        </svg>
+        <AlarmClockPlus className="size-[18px]" strokeWidth={1.75} />
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
-          {PRESETS.map((p) => (
+        <div
+          role="menu"
+          className="absolute right-0 z-30 mt-1 w-48 origin-top-right animate-pop-in rounded-xl bg-surface p-1 shadow-lg ring-1 ring-line"
+        >
+          <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
+            Reporter à
+          </p>
+          {SNOOZE_PRESETS.map((p) => (
             <button
               key={p.preset}
               type="button"
+              role="menuitem"
               onClick={() => {
                 setOpen(false)
                 snooze(taskId, p.preset)
               }}
-              className="block w-full px-3 py-1.5 text-left text-sm hover:bg-stone-100"
+              className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm text-ink hover:bg-sunken"
             >
-              {p.label}
+              <p.icon className="size-4 text-ink-3" strokeWidth={1.75} />
+              <span className="flex-1">{p.label}</span>
+              {p.key && <Kbd>{p.key.toUpperCase()}</Kbd>}
             </button>
           ))}
         </div>
