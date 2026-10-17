@@ -34,6 +34,14 @@ cd planning && ./scripts/dev-mac.sh
 
 Le script installe au besoin Node 22, MariaDB, Redis et Mailpit avec Homebrew. Il crée ensuite les bases et le `.env` (clé d'app et clés VAPID générées), migre la base et charge la démo. Pour finir, il démarre l'app et le worker, puis ouvre le navigateur. Identifiants : `nathan@example.com` / `secret123`. Les mails (récap du matin) arrivent sur http://localhost:8025. Ctrl+C arrête tout. Le script peut être relancé sans risque.
 
+**Données de démo** : 60 clients (30 par entreprise) et une soixantaine de tâches, dans tous les états. On y trouve des retards, la journée, la semaine, les deux mois à venir, la boîte « à trier », un historique, des récurrences, un report, un client ambigu, des mails avec pièce jointe et des dates venues des CRM. Les dates sont recalculées à chaque fois, pour que la démo reste « fraîche ». Pour la remettre à zéro :
+
+```bash
+node ace db:seed      # remplace les tâches du compte de démo et les clients des deux CRM
+```
+
+Le contenu se modifie dans `database/demo_data.ts`.
+
 **Tester sur l'iPhone** :
 
 ```bash
