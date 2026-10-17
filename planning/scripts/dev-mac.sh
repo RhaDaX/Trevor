@@ -13,6 +13,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 TUNNEL=0
+# IPv4 explicite : sur Mac, « localhost » peut désigner ::1 ou 127.0.0.1
+export HOST=127.0.0.1
 [[ "${1:-}" == "--tunnel" ]] && TUNNEL=1
 APP_URL="${APP_URL:-http://localhost:3333}"
 step() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
@@ -92,7 +94,7 @@ trap cleanup EXIT INT TERM
 
 if [[ "$TUNNEL" == "1" ]]; then
   step "Tunnel Cloudflare"
-  cloudflared tunnel --no-autoupdate --url http://localhost:3333 > storage/tunnel.log 2>&1 &
+  cloudflared tunnel --no-autoupdate --url http://127.0.0.1:3333 > storage/tunnel.log 2>&1 &
   pids+=($!)
   url=""
   for i in {1..30}; do
@@ -117,6 +119,43 @@ mkdir -p storage
 node ace planning:worker > storage/worker.log 2>&1 &
 pids+=($!)
 
+if [[ "$TUNNEL" == "1" ]]; then
+  node bin/server.js &
+else
+  node ace serve --hmr &
+fi
+server=$!
+pids+=($server)
+
+# On attend que l'app réponde vraiment avant d'annoncer quoi que ce soit
+printf '  Démarrage de l’app'
+for i in {1..90}; do
+  curl -s -o /dev/null --noproxy '*' http://127.0.0.1:3333/health && break
+  kill -0 "$server" 2>/dev/null || { echo; echo "L'app s'est arrêtée : voir les messages ci-dessus."; exit 1; }
+  printf '.'; sleep 1
+done
+curl -s -o /dev/null --noproxy '*' http://127.0.0.1:3333/health || { echo; echo "L'app ne répond pas sur le port 3333."; exit 1; }
+echo " prête."
+
+if [[ "$TUNNEL" == "1" ]]; then
+  # Une adresse trycloudflare neuve met un moment à exister ; l'ouvrir trop tôt
+  # fait retenir « introuvable » au Mac pendant plusieurs minutes
+  printf '  Mise en place du tunnel (jusqu’à 2 min)'
+  ok=0
+  for i in {1..60}; do
+    if [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$APP_URL/health" || true)" == "200" ]]; then ok=1; break; fi
+    printf '.'; sleep 2
+  done
+  if [[ "$ok" == "1" ]]; then
+    echo " joignable."
+  else
+    echo
+    echo "  Le tunnel ne répond pas encore. Patienter une minute, puis vider le cache DNS du Mac :"
+    echo "    sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder"
+    echo "  Journal du tunnel : storage/tunnel.log"
+  fi
+fi
+
 cat <<INFO
 
   App       http://localhost:3333   (nathan@example.com / secret123)
@@ -139,9 +178,5 @@ fi
 
 echo "  Ctrl+C pour tout arrêter."
 echo
-( sleep 6; command -v open >/dev/null && open "$APP_URL" ) &
-if [[ "$TUNNEL" == "1" ]]; then
-  node bin/server.js
-else
-  node ace serve --hmr
-fi
+command -v open >/dev/null && open "$APP_URL"
+wait "$server"
