@@ -114,3 +114,62 @@ export function todayLabel(timezone: string) {
 export function plural(n: number, one: string, many: string) {
   return `${n} ${n > 1 ? many : one}`
 }
+
+/** Retard exprimé simplement : « il y a 25 min », « il y a 3 h », « depuis hier » */
+export function formatLateness(iso: string | null, timezone: string, now: Date = new Date()) {
+  if (!iso) return null
+  const date = new Date(iso)
+  const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000)
+  if (minutes < 1) return null
+  if (minutes < 60) return `il y a ${minutes} min`
+  const today = dayKey(now, timezone)
+  if (dayKey(date, timezone) === today) return `il y a ${Math.floor(minutes / 60)} h`
+  if (dayKey(date, timezone) === dayKey(new Date(now.getTime() - 86_400_000), timezone))
+    return 'depuis hier'
+  return `depuis ${Math.max(2, Math.round(minutes / 1440))} j`
+}
+
+/** Jour calendaire local (fuseau de l'utilisateur) décalé de n jours */
+export function shiftDayKey(key: string, days: number) {
+  const [y, m, d] = key.split('-').map(Number)
+  const date = new Date(Date.UTC(y, m - 1, d + days))
+  return date.toISOString().slice(0, 10)
+}
+
+export function todayKey(timezone: string) {
+  return dayKey(new Date(), timezone)
+}
+
+/** Jour de la semaine (1 = lundi … 7 = dimanche) d'une clé de jour */
+export function weekdayOf(key: string) {
+  const [y, m, d] = key.split('-').map(Number)
+  return ((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7) + 1
+}
+
+/** Valeur datetime-local pour un raccourci de date (« demain 9 h »…) */
+export function presetInput(
+  preset: 'tonight' | 'tomorrow' | 'monday' | 'nextweek',
+  timezone: string
+) {
+  const today = todayKey(timezone)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  switch (preset) {
+    case 'tonight':
+      return `${today}T18:00`
+    case 'tomorrow':
+      return `${shiftDayKey(today, 1)}T09:00`
+    case 'monday': {
+      const offset = (8 - weekdayOf(today)) % 7 || 7
+      return `${shiftDayKey(today, offset)}T09:00`
+    }
+    case 'nextweek':
+      return `${shiftDayKey(today, 7)}T${pad(9)}:00`
+  }
+}
+
+export function shortWeekday(key: string) {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'short' })
+    .format(new Date(Date.UTC(y, m - 1, d, 12)))
+    .replace('.', '')
+}

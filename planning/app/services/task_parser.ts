@@ -175,7 +175,9 @@ export function parseTask(input: string, options: ParseOptions): ParsedTask {
     allDay = true
   }
 
-  const title = cleanup(text) || cleanup(input) || 'Sans titre'
+  const raw = cleanup(text) || cleanup(input) || 'Sans titre'
+  // Majuscule initiale : « rappeler Dupont » → « Rappeler Dupont »
+  const title = raw.charAt(0).toLocaleUpperCase('fr-FR') + raw.slice(1)
 
   return {
     title,

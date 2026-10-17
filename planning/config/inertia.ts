@@ -1,6 +1,6 @@
 import { defineConfig } from '@adonisjs/inertia'
 import type { InferSharedProps } from '@adonisjs/inertia/types'
-import Task from '#models/task'
+import { attentionCounts } from '#services/attention'
 import planningConfig from '#config/planning'
 
 const inertiaConfig = defineConfig({
@@ -24,16 +24,10 @@ const inertiaConfig = defineConfig({
     company: (ctx) =>
       ctx.inertia.always(() => (ctx.session?.get('company') as 'a' | 'b' | undefined) ?? null),
     companies: () => planningConfig.crms.map((c) => ({ code: c.company, name: c.name })),
-    inboxCount: (ctx) =>
-      ctx.inertia.always(async () => {
-        if (!ctx.auth?.user) return 0
-        const row = await Task.query()
-          .where('user_id', ctx.auth.user.id)
-          .where('status', 'inbox')
-          .count('* as total')
-          .first()
-        return Number(row?.$extras.total ?? 0)
-      }),
+    attention: (ctx) =>
+      ctx.inertia.always(async () =>
+        ctx.auth?.user ? attentionCounts(ctx.auth.user.id) : { overdue: 0, inbox: 0, badge: 0 }
+      ),
     flash: (ctx) =>
       ctx.inertia.always(() => ({
         success: ctx.session?.flashMessages.get('success') ?? null,

@@ -11,6 +11,10 @@ self.addEventListener('push', (event) => {
     data = { title: 'Planning', body: event.data ? event.data.text() : '' }
   }
   const actions = (data.actions || []).slice(0, 2)
+  // Pastille sur l'icône de l'écran d'accueil (iOS ≥ 16.4, macOS)
+  if (typeof data.badge === 'number' && self.navigator.setAppBadge) {
+    data.badge > 0 ? self.navigator.setAppBadge(data.badge) : self.navigator.clearAppBadge()
+  }
   event.waitUntil(
     self.registration.showNotification(data.title || 'Planning', {
       body: data.body || '',

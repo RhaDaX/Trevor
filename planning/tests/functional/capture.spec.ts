@@ -26,7 +26,7 @@ test.group('Capture via l’API (Siri, Mac)', (group) => {
 
     response.assertStatus(201)
     const task = await Task.findOrFail(response.body().task.id)
-    assert.equal(task.title, 'rappeler Dupont')
+    assert.equal(task.title, 'Rappeler Dupont')
     assert.equal(task.origin, 'siri')
     assert.equal(task.priority, 'high')
     assert.equal(task.status, 'todo')
@@ -171,8 +171,32 @@ test.group('Cycle de vie d’une tâche', (group) => {
       .form({ text: 'faire le point avec Paul lundi 10h' })
     response.assertStatus(302)
     const task = await Task.query().where('user_id', user.id).firstOrFail()
-    assert.equal(task.title, 'faire le point avec Paul')
+    assert.equal(task.title, 'Faire le point avec Paul')
     assert.equal(task.origin, 'app')
+  })
+
+  test('compteurs : retards, à trier, faites aujourd’hui', async ({ client, assert }) => {
+    const user = await makeUser()
+    await Task.create({
+      userId: user.id,
+      title: 'en retard',
+      dueAt: DateTime.now().minus({ hours: 2 }),
+      status: 'todo',
+      origin: 'app',
+      priority: 'normal',
+    })
+    await taskService.capture(user, { text: 'idée sans date', origin: 'app' })
+    const { task } = await taskService.capture(user, {
+      text: 'faite tout de suite demain',
+      origin: 'app',
+    })
+    await taskService.complete(task)
+
+    const response = await client.get('/today').loginAs(user).withInertia()
+    const props = response.body().props
+    assert.deepEqual(props.attention, { overdue: 1, inbox: 1, badge: 2 })
+    assert.lengthOf(props.doneToday, 1)
+    assert.lengthOf(props.overdue, 1)
   })
 
   test('un autre utilisateur ne voit pas la tâche', async ({ client }) => {
@@ -190,7 +214,7 @@ test.group('Cycle de vie d’une tâche', (group) => {
       .qs({ q: 'relancer devis vendredi 15h' })
       .loginAs(user)
     response.assertStatus(200)
-    assert.equal(response.body().preview.title, 'relancer devis')
+    assert.equal(response.body().preview.title, 'Relancer devis')
     assert.isFalse(response.body().preview.goesToInbox)
   })
 
@@ -204,7 +228,7 @@ test.group('Cycle de vie d’une tâche', (group) => {
 
     const onlyB = await client.get('/upcoming').qs({ company: 'b' }).loginAs(user).withInertia()
     const titles = onlyB.body().props.tasks.map((t: any) => t.title)
-    assert.sameMembers(titles, ['tâche B', 'tâche b sans client'])
+    assert.sameMembers(titles, ['Tâche B', 'Tâche b sans client'])
   })
 })
 

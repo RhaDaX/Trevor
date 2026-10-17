@@ -5,6 +5,7 @@ import { resolvePageComponent } from '@adonisjs/inertia/helpers'
 import type { ReactNode } from 'react'
 import AppLayout from '~/layouts/app_layout'
 import { registerServiceWorker } from '~/lib/push'
+import { watchSystemTheme } from '~/lib/theme'
 
 const appName = 'Planning'
 
@@ -35,3 +36,4 @@ createInertiaApp({
 })
 
 registerServiceWorker()
+watchSystemTheme()

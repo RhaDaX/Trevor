@@ -145,6 +145,7 @@ export class Reminders {
           .join('\n') || 'Rien de prévu',
       url: absoluteUrl(inbox.length ? '/inbox' : '/today'),
       tag: 'morning-recap',
+      badge: overdue.length + inbox.length,
     })
 
     user.lastRecapOn = local.startOf('day')

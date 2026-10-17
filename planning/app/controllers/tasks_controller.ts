@@ -56,16 +56,22 @@ export default class TasksController {
         .whereNotNull('due_at')
         .orderByRaw(`${ALARM_SQL} asc`)
 
-    const [overdue, today, soon] = await Promise.all([
+    const startOfDay = now.setZone(user.timezone).startOf('day')
+    const [overdue, today, soon, doneToday] = await Promise.all([
       open().whereRaw(`${ALARM_SQL} < ?`, [sql(now)]),
       open().whereRaw(`${ALARM_SQL} between ? and ?`, [sql(now), sql(endOfDay)]),
       open().whereRaw(`${ALARM_SQL} > ? and ${ALARM_SQL} <= ?`, [sql(endOfDay), sql(inAWeek)]),
+      this.#base(ctx)
+        .where('status', 'done')
+        .where('done_at', '>=', sql(startOfDay))
+        .orderBy('done_at', 'desc'),
     ])
 
     return ctx.inertia.render('tasks/today', {
       overdue: overdue.map((t) => presentTask(t, now)),
       today: today.map((t) => presentTask(t, now)),
       soon: soon.map((t) => presentTask(t, now)),
+      doneToday: doneToday.map((t) => presentTask(t, now)),
     })
   }
 

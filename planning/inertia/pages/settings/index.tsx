@@ -6,6 +6,7 @@ import {
   Check,
   Copy as CopyIcon,
   KeyRound,
+  Palette,
   Mic,
   Monitor,
   Smartphone,
@@ -22,6 +23,7 @@ import {
   pushSupported,
 } from '~/lib/push'
 import { Button, Card, Field, PageHeader, inputClass } from '~/components/ui'
+import ThemeSwitch from '~/components/theme_switch'
 
 interface Props {
   settings: {
@@ -339,6 +341,14 @@ export default function Settings({ settings, calendarUrl, apiUrl, tokens, push }
             </div>
           </Card>
         </form>
+      </SettingsSection>
+
+      <SettingsSection
+        icon={Palette}
+        title="Apparence"
+        description="Le thème « Système » suit le réglage clair / sombre de l’appareil."
+      >
+        <ThemeSwitch withLabels />
       </SettingsSection>
 
       <PushSection push={push} />

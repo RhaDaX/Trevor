@@ -170,7 +170,7 @@ export function PageHeader({
   actions?: ReactNode
 }) {
   return (
-    <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
+    <header className="mb-7 flex items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && (
           <p className="mb-1 text-[13px] font-medium text-ink-3 first-letter:uppercase">

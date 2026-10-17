@@ -32,7 +32,13 @@ export function SnoozeButtons({ taskId, compact = false }: { taskId: number; com
   )
 }
 
-export default function SnoozeMenu({ taskId }: { taskId: number }) {
+export default function SnoozeMenu({
+  taskId,
+  onSnooze,
+}: {
+  taskId: number
+  onSnooze?: () => void
+}) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -80,6 +86,7 @@ export default function SnoozeMenu({ taskId }: { taskId: number }) {
               role="menuitem"
               onClick={() => {
                 setOpen(false)
+                onSnooze?.()
                 snooze(taskId, p.preset)
               }}
               className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm text-ink hover:bg-sunken"

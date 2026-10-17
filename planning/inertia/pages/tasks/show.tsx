@@ -15,7 +15,14 @@ import {
 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { SharedProps, TaskDto } from '~/lib/types'
-import { formatDateTime, formatSize, ORIGIN_LABELS, toLocalInput, useTimezone } from '~/lib/format'
+import {
+  formatDateTime,
+  formatSize,
+  ORIGIN_LABELS,
+  presetInput,
+  toLocalInput,
+  useTimezone,
+} from '~/lib/format'
 import { SnoozeButtons } from '~/components/snooze_menu'
 import ClientPicker from '~/components/client_picker'
 import { Button, Card, CompanyDot, Kbd, Segmented, cx, inputClass } from '~/components/ui'
@@ -27,6 +34,13 @@ const RECURRENCES = [
   { value: 'FREQ=MONTHLY;INTERVAL=3', label: 'Tous les trimestres' },
   { value: 'FREQ=YEARLY', label: 'Tous les ans' },
 ]
+
+const DATE_PRESETS = [
+  { preset: 'tonight', label: 'Ce soir 18 h' },
+  { preset: 'tomorrow', label: 'Demain 9 h' },
+  { preset: 'monday', label: 'Lundi 9 h' },
+  { preset: 'nextweek', label: 'Dans 1 semaine' },
+] as const
 
 const STATUS = {
   inbox: { label: 'À trier', cls: 'bg-amber-soft text-amber-ink' },
@@ -236,6 +250,36 @@ export default function ShowTask({ task }: { task: TaskDto }) {
                   />
                   Journée entière
                 </label>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {DATE_PRESETS.map((p) => {
+                  const value = presetInput(p.preset, tz)
+                  const active = form.data.due_at === value
+                  return (
+                    <button
+                      key={p.preset}
+                      type="button"
+                      onClick={() => form.setData((d) => ({ ...d, due_at: value, all_day: false }))}
+                      className={cx(
+                        'h-7 rounded-lg px-2.5 text-[12.5px] font-medium transition-colors',
+                        active
+                          ? 'bg-ink text-ink-inverse'
+                          : 'bg-sunken text-ink-2 ring-1 ring-inset ring-line hover:text-ink'
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  )
+                })}
+                {form.data.due_at && (
+                  <button
+                    type="button"
+                    onClick={() => form.setData('due_at', '')}
+                    className="h-7 rounded-lg px-2.5 text-[12.5px] font-medium text-ink-3 hover:text-signal"
+                  >
+                    Sans date
+                  </button>
+                )}
               </div>
             </Property>
             <Property icon={Hourglass} label="Rappel">

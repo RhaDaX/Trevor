@@ -43,7 +43,7 @@ function InboxCard({ task, suggestions }: { task: TaskDto; suggestions: ClientDt
           <Link
             href={`/tasks/${task.id}`}
             data-open
-            className="block text-[15px] leading-[1.4] font-medium text-ink hover:underline hover:underline-offset-2"
+            className="block text-[15px] leading-[1.4] font-medium text-ink first-letter:uppercase hover:underline hover:underline-offset-2"
           >
             {task.title}
           </Link>

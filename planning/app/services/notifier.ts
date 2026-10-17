@@ -4,6 +4,7 @@ import logger from '@adonisjs/core/services/logger'
 import router from '@adonisjs/core/services/router'
 import planningConfig from '#config/planning'
 import PushSubscription from '#models/push_subscription'
+import { attentionCounts } from '#services/attention'
 import type Task from '#models/task'
 import type User from '#models/user'
 
@@ -14,6 +15,8 @@ export interface PushPayload {
   tag?: string
   /** Actions rapides affichées sous la notification (report, fait) */
   actions?: { action: string; title: string; url: string }[]
+  /** Pastille sur l'icône de la PWA (retards + à trier) */
+  badge?: number
 }
 
 let configured = false
@@ -90,7 +93,9 @@ export class Notifier {
 
   async pushTask(user: User, task: Task, prefix: string) {
     const client = task.$preloaded.client as unknown as { name: string } | undefined
+    const { badge } = await attentionCounts(user.id)
     return this.push(user, {
+      badge,
       title: `${prefix} ${task.title}`,
       body: [client?.name, task.notes?.slice(0, 120)].filter(Boolean).join(' — ') || 'Planning',
       url: absoluteUrl(`/tasks/${task.id}`),

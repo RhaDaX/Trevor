@@ -41,7 +41,7 @@ export interface SharedProps {
   user: { id: number; email: string; fullName: string | null; timezone: string } | null
   company: Company | null
   companies: { code: Company; name: string }[]
-  inboxCount: number
+  attention: { overdue: number; inbox: number; badge: number }
   flash: {
     success: string | null
     error: string | null

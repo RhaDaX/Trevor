@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react'
 import type { SharedProps } from '~/lib/types'
 import QuickCapture, { FOCUS_CAPTURE_EVENT } from '~/components/quick_capture'
 import Shortcuts from '~/components/shortcuts'
+import ThemeSwitch from '~/components/theme_switch'
 import { CompanyDot, Kbd, Segmented, cx } from '~/components/ui'
 
 type Props = SharedProps & Record<string, unknown>
@@ -122,6 +123,7 @@ function NavItem({
   icon: Icon,
   active,
   badge,
+  badgeTone = 'amber',
   shortcut,
 }: {
   href: string
@@ -129,6 +131,7 @@ function NavItem({
   icon: LucideIcon
   active: boolean
   badge?: number
+  badgeTone?: 'amber' | 'signal'
   shortcut?: string
 }) {
   return (
@@ -148,7 +151,12 @@ function NavItem({
       />
       <span className="flex-1">{label}</span>
       {badge ? (
-        <span className="min-w-5 rounded-full bg-amber-soft px-1.5 text-center text-xs leading-5 font-semibold text-amber-ink tabular">
+        <span
+          className={cx(
+            'min-w-5 rounded-full px-1.5 text-center text-xs leading-5 font-semibold tabular',
+            badgeTone === 'signal' ? 'bg-signal-soft text-signal' : 'bg-amber-soft text-amber-ink'
+          )}
+        >
           {badge}
         </span>
       ) : shortcut ? (
@@ -168,6 +176,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     path === href || (href !== '/today' && path.startsWith(href + '/'))
   const user = props.user
 
+  // Pastille de l'icône de l'app (écran d'accueil iPhone, Dock du Mac)
+  useEffect(() => {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (n: number) => Promise<void>
+      clearAppBadge?: () => Promise<void>
+    }
+    const count = props.attention.badge
+    ;(count > 0 ? nav.setAppBadge?.(count) : nav.clearAppBadge?.())?.catch(() => {})
+  }, [props.attention.badge])
+
+  // En PWA, pas de « tirer pour rafraîchir » : on recharge au retour dans l'app
+  useEffect(() => {
+    let hiddenAt = 0
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now()
+      else if (hiddenAt && Date.now() - hiddenAt > 30_000) router.reload()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+
   return (
     <div className="min-h-dvh">
       {/* Barre latérale (desktop) */}
@@ -185,7 +214,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               key={item.href}
               {...item}
               active={isActive(item.href)}
-              badge={item.href === '/inbox' ? props.inboxCount : undefined}
+              badge={
+                item.href === '/inbox'
+                  ? props.attention.inbox
+                  : item.href === '/today'
+                    ? props.attention.overdue
+                    : undefined
+              }
+              badgeTone={item.href === '/today' ? 'signal' : 'amber'}
             />
           ))}
           <NavItem
@@ -204,6 +240,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="mt-auto space-y-0.5 border-t border-line pt-3">
+          <div className="flex items-center justify-between px-2.5 pb-2">
+            <span className="text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
+              Thème
+            </span>
+            <ThemeSwitch />
+          </div>
           <NavItem
             href="/settings"
             label="Réglages"
@@ -299,9 +341,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 >
                   <Icon className="size-[22px]" strokeWidth={active ? 2.1 : 1.75} />
                   {item.short}
-                  {item.href === '/inbox' && props.inboxCount > 0 && (
+                  {item.href === '/inbox' && props.attention.inbox > 0 && (
                     <span className="absolute top-1.5 left-[calc(50%+6px)] min-w-[18px] rounded-full bg-amber px-1 text-center text-[10px] leading-[18px] font-bold text-white tabular">
-                      {props.inboxCount}
+                      {props.attention.inbox}
                     </span>
                   )}
                 </Link>

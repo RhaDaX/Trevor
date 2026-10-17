@@ -11,7 +11,7 @@ const local = (d: DateTime | null) => d?.setZone(tz).toFormat('yyyy-MM-dd HH:mm'
 test.group('Saisie en langage naturel', () => {
   test('exemple du cahier des charges', ({ assert }) => {
     const r = parse('rappeler Dupont jeudi 14h #urgent')
-    assert.equal(r.title, 'rappeler Dupont')
+    assert.equal(r.title, 'Rappeler Dupont')
     assert.equal(local(r.dueAt), '2026-10-22 14:00')
     assert.equal(r.priority, 'high')
     assert.isFalse(r.allDay)
@@ -25,12 +25,12 @@ test.group('Saisie en langage naturel', () => {
   test('sans date : pas d’échéance (→ à trier)', ({ assert }) => {
     const r = parse('penser à refaire le site de Martin')
     assert.isNull(r.dueAt)
-    assert.equal(r.title, 'penser à refaire le site de Martin')
+    assert.equal(r.title, 'Penser à refaire le site de Martin')
   })
 
   test('jour sans heure : journée entière à 9h', ({ assert }) => {
     const r = parse('envoyer devis demain')
-    assert.equal(r.title, 'envoyer devis')
+    assert.equal(r.title, 'Envoyer devis')
     assert.equal(local(r.dueAt), '2026-10-18 09:00')
     assert.isTrue(r.allDay)
   })
@@ -44,7 +44,7 @@ test.group('Saisie en langage naturel', () => {
     const r = parse('vérifier sauvegardes #b #bas')
     assert.equal(r.company, 'b')
     assert.equal(r.priority, 'low')
-    assert.equal(r.title, 'vérifier sauvegardes')
+    assert.equal(r.title, 'Vérifier sauvegardes')
   })
 
   test('récurrence simple', ({ assert }) => {
@@ -61,12 +61,12 @@ test.group('Saisie en langage naturel', () => {
 test.group('Saisie en langage naturel — cas limites', () => {
   test('« tous les mois le 5 » : prochain 5 du mois', ({ assert }) => {
     const r = parse('payer hébergement tous les mois le 5')
-    assert.equal(r.title, 'payer hébergement')
+    assert.equal(r.title, 'Payer hébergement')
     assert.equal(r.recurrenceRule, 'FREQ=MONTHLY')
     assert.equal(local(r.dueAt), '2026-11-05 09:00')
   })
 
   test('typographie française conservée', ({ assert }) => {
-    assert.equal(parse('idée : newsletter').title, 'idée : newsletter')
+    assert.equal(parse('idée : newsletter').title, 'Idée : newsletter')
   })
 })

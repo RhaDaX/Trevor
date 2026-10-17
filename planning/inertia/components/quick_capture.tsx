@@ -290,7 +290,7 @@ export default function QuickCapture() {
                             <Plus className="size-4" strokeWidth={2.25} />
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[15px] font-medium text-ink">
+                            <span className="block truncate text-[15px] font-medium text-ink first-letter:uppercase">
                               {preview?.title ?? text.trim()}
                             </span>
                             <span className="mt-2 flex flex-wrap gap-1.5">
