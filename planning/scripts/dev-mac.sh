@@ -20,6 +20,15 @@ APP_URL="${APP_URL:-http://localhost:3333}"
 step() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 
 # --- 1. Outils ---------------------------------------------------------------
+# Démarre un service Homebrew sans jamais bloquer : launchctl refuse parfois
+# (« Bootstrap failed: 5 ») un service déjà chargé, lancé avec sudo ou planté
+brew_service() {
+  local svc="$1"
+  brew services start "$svc" >/dev/null 2>&1 && return 0
+  brew services restart "$svc" >/dev/null 2>&1 && return 0
+  return 1
+}
+
 if [[ "${SKIP_BREW:-0}" != "1" ]]; then
   step "Outils (Homebrew)"
   command -v brew >/dev/null || { echo "Homebrew manquant : https://brew.sh"; exit 1; }
@@ -28,8 +37,39 @@ if [[ "${SKIP_BREW:-0}" != "1" ]]; then
   for pkg in "${pkgs[@]}"; do
     brew list --versions "$pkg" >/dev/null 2>&1 || brew install "$pkg"
   done
-  for svc in mariadb redis mailpit; do brew services start "$svc" >/dev/null; done
-  export PATH="$(brew --prefix node@22)/bin:$PATH"
+  export PATH="$(brew --prefix node@22)/bin:$(brew --prefix mariadb)/bin:$PATH"
+  mkdir -p storage
+
+  # Port 3306 pris par autre chose (MySQL d'un projet sous Docker…) : MariaDB
+  # Homebrew passe sur 3307 avant de démarrer ; l'app passe de toute façon par le socket
+  # lsof sort en erreur quand le port est libre : ne pas arrêter le script pour ça
+  owner="$( (lsof -nP -iTCP:3306 -sTCP:LISTEN 2>/dev/null || true) | awk 'NR==2 {print $1}')"
+  conf_dir="$(brew --prefix)/etc/my.cnf.d"
+  if [[ -n "$owner" && "$owner" != mariadbd && "$owner" != mysqld && ! -f "$conf_dir/planning-port.cnf" ]]; then
+    echo "  Port 3306 occupé par « $owner » : MariaDB Homebrew utilisera le port 3307."
+    mkdir -p "$conf_dir"
+    printf '[mysqld]\nport = 3307\n' > "$conf_dir/planning-port.cnf"
+    mariadb-admin ping >/dev/null 2>&1 && { brew services restart mariadb >/dev/null 2>&1 || true; }
+  fi
+
+  if ! mariadb-admin ping >/dev/null 2>&1; then
+    brew_service mariadb || {
+      echo "  brew services refuse MariaDB : démarrage direct."
+      mysql.server start >/dev/null 2>&1 || (nohup mariadbd-safe > storage/mariadb.log 2>&1 &)
+    }
+  fi
+  if ! redis-cli ping >/dev/null 2>&1; then
+    brew_service redis || {
+      echo "  brew services refuse Redis : démarrage direct."
+      redis-server --daemonize yes >/dev/null
+    }
+  fi
+  if ! curl -s --max-time 2 -o /dev/null http://127.0.0.1:8025; then
+    brew_service mailpit || {
+      echo "  brew services refuse Mailpit : démarrage direct."
+      (nohup mailpit > storage/mailpit.log 2>&1 &) || echo "  Mailpit indisponible : les mails ne seront pas visibles (non bloquant)."
+    }
+  fi
 fi
 
 # Adonis 6 ne charge pas ses commandes sous Node 24
@@ -40,19 +80,6 @@ fi
 
 # --- 2. Bases ----------------------------------------------------------------
 step "Bases de données"
-
-# Le port 3306 est souvent déjà pris (MySQL d'un autre projet sous Docker…) :
-# MariaDB Homebrew passe alors sur 3307, et l'app se connecte par le socket local
-if [[ "${SKIP_BREW:-0}" != "1" ]]; then
-  owner="$(lsof -nP -iTCP:3306 -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1}')"
-  conf_dir="$(brew --prefix)/etc/my.cnf.d"
-  if [[ -n "$owner" && "$owner" != mariadbd && "$owner" != mysqld && ! -f "$conf_dir/planning-port.cnf" ]]; then
-    echo "  Port 3306 occupé par « $owner » : MariaDB Homebrew passe sur le port 3307."
-    mkdir -p "$conf_dir"
-    printf '[mysqld]\nport = 3307\n' > "$conf_dir/planning-port.cnf"
-    brew services restart mariadb >/dev/null
-  fi
-fi
 
 for i in {1..30}; do mariadb-admin ping >/dev/null 2>&1 && break; sleep 1; done
 admin=(mariadb)
