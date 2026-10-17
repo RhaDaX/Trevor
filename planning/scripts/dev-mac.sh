@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
 # Lance tout l'outil planning en local sur un Mac, en une commande :
-#   ./scripts/dev-mac.sh
+#   ./scripts/dev-mac.sh            → http://localhost:3333
+#   ./scripts/dev-mac.sh --tunnel   → en plus, une URL HTTPS publique (Cloudflare)
+#                                     et un QR code pour l'ouvrir sur l'iPhone
 #
 # Installe si besoin (Homebrew) Node 22, MariaDB, Redis et Mailpit, crée les
 # bases, prépare le .env, migre, charge les données de démo, puis démarre
@@ -10,6 +12,8 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+TUNNEL=0
+[[ "${1:-}" == "--tunnel" ]] && TUNNEL=1
 APP_URL="${APP_URL:-http://localhost:3333}"
 step() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 
@@ -17,7 +21,9 @@ step() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 if [[ "${SKIP_BREW:-0}" != "1" ]]; then
   step "Outils (Homebrew)"
   command -v brew >/dev/null || { echo "Homebrew manquant : https://brew.sh"; exit 1; }
-  for pkg in node@22 mariadb redis mailpit; do
+  pkgs=(node@22 mariadb redis mailpit)
+  [[ "$TUNNEL" == "1" ]] && pkgs+=(cloudflared qrencode)
+  for pkg in "${pkgs[@]}"; do
     brew list --versions "$pkg" >/dev/null 2>&1 || brew install "$pkg"
   done
   for svc in mariadb redis mailpit; do brew services start "$svc" >/dev/null; done
@@ -52,7 +58,7 @@ if [[ ! -f .env ]]; then
   cp .env.example .env
   node ace generate:key >/dev/null
   vapid="$(node ace vapid:generate)"
-  APP_URL="$APP_URL" VAPID="$vapid" node --input-type=module -e '
+  APP_URL="http://localhost:3333" VAPID="$vapid" node --input-type=module -e '
     import { readFileSync, writeFileSync } from "node:fs"
     const set = { NODE_ENV: "development", HOST: "localhost", APP_URL: process.env.APP_URL,
       DB_HOST: "127.0.0.1", DB_USER: "planning", DB_PASSWORD: "planning", DB_DATABASE: "planning",
@@ -77,19 +83,65 @@ users="$(mariadb -N -u planning -pplanning -h 127.0.0.1 planning -e 'SELECT COUN
 # --- 5. Démarrage --------------------------------------------------------------
 step "Démarrage"
 mkdir -p storage
+pids=()
+cleanup() {
+  for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done
+  echo; echo "Arrêté."
+}
+trap cleanup EXIT INT TERM
+
+if [[ "$TUNNEL" == "1" ]]; then
+  step "Tunnel Cloudflare"
+  cloudflared tunnel --no-autoupdate --url http://localhost:3333 > storage/tunnel.log 2>&1 &
+  pids+=($!)
+  url=""
+  for i in {1..30}; do
+    url="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' storage/tunnel.log | grep -v '//api\.' | head -1 || true)"
+    [[ -n "$url" ]] && break
+    sleep 1
+  done
+  [[ -z "$url" ]] && { echo "Tunnel indisponible (voir storage/tunnel.log)"; exit 1; }
+  # L'URL publique sert aux liens des notifications, du calendrier et des mails
+  export APP_URL="$url"
+
+  # Version de production (sans serveur Vite) : ce que l'iPhone verra une fois déployé
+  step "Build de production"
+  NODE_ENV=production node ace build > storage/build.log 2>&1 || { cat storage/build.log; exit 1; }
+  cp .env build/.env
+  ln -sfn ../node_modules build/node_modules
+  export NODE_ENV=production
+  cd build
+fi
+
+mkdir -p storage
 node ace planning:worker > storage/worker.log 2>&1 &
-worker=$!
-trap 'kill $worker 2>/dev/null; echo; echo "Arrêté."' EXIT INT TERM
+pids+=($!)
 
 cat <<INFO
 
-  App       $APP_URL          (nathan@example.com / secret123)
+  App       http://localhost:3333   (nathan@example.com / secret123)
   Mails     http://localhost:8025   (récap : node ace recap:send nathan@example.com)
   Worker    rappels, relances, récap — journal dans storage/worker.log
-
-  Ctrl+C pour tout arrêter.
-
 INFO
 
+if [[ "$TUNNEL" == "1" ]]; then
+  cat <<INFO
+  Public    $APP_URL
+
+  En mode tunnel, utiliser l'adresse publique (aussi sur le Mac).
+  Sur l'iPhone : scanner le QR code, puis Partager → « Sur l'écran d'accueil »,
+  ouvrir l'app depuis l'icône et activer les notifications dans Réglages.
+  L'adresse change à chaque lancement du tunnel.
+
+INFO
+  qrencode -t ansiutf8 "$APP_URL"
+fi
+
+echo "  Ctrl+C pour tout arrêter."
+echo
 ( sleep 6; command -v open >/dev/null && open "$APP_URL" ) &
-node ace serve --hmr
+if [[ "$TUNNEL" == "1" ]]; then
+  node bin/server.js
+else
+  node ace serve --hmr
+fi

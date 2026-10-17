@@ -34,6 +34,14 @@ cd planning && ./scripts/dev-mac.sh
 
 Le script installe au besoin Node 22, MariaDB, Redis et Mailpit avec Homebrew. Il crée ensuite les bases et le `.env` (clé d'app et clés VAPID générées), migre la base et charge la démo. Pour finir, il démarre l'app et le worker, puis ouvre le navigateur. Identifiants : `nathan@example.com` / `secret123`. Les mails (récap du matin) arrivent sur http://localhost:8025. Ctrl+C arrête tout. Le script peut être relancé sans risque.
 
+**Tester sur l'iPhone** :
+
+```bash
+./scripts/dev-mac.sh --tunnel
+```
+
+Cette option installe en plus `cloudflared` et `qrencode`, puis ouvre une adresse publique en HTTPS (`https://….trycloudflare.com`, obligatoire pour la PWA et les notifications sur iPhone) et affiche un QR code à scanner. Dans ce mode, l'app tourne en version de production, comme une fois déployée. L'adresse change à chaque lancement : il faut alors réinstaller la PWA sur l'iPhone, et les liens du calendrier et des notifications suivent la nouvelle adresse.
+
 ## Démarrer en local (manuel)
 
 Prérequis : Node 22 (Adonis 6 ne charge pas ses commandes sous Node 24), MariaDB ≥ 10.6, Redis.

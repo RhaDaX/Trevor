@@ -12,7 +12,8 @@ RUN npm ci
 # Build Adonis + Vite
 FROM deps AS build
 COPY . .
-RUN node ace build
+# Sans NODE_ENV=production, Vite embarque la version de développement de React
+RUN NODE_ENV=production node ace build
 
 # Image finale : dépendances de production uniquement
 FROM base AS production
