@@ -249,7 +249,7 @@ export default function Settings({ settings, calendarUrl, apiUrl, tokens, push }
       <PageHeader title="Réglages" />
 
       <SettingsSection
-        icon={UserRound}
+        icon={AlarmClock}
         title="Rappels"
         description="Une tâche en retard revient jusqu’à être cochée ou reportée."
       >
