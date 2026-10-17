@@ -40,15 +40,41 @@ fi
 
 # --- 2. Bases ----------------------------------------------------------------
 step "Bases de données"
-sql="CREATE DATABASE IF NOT EXISTS planning CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+# Le port 3306 est souvent déjà pris (MySQL d'un autre projet sous Docker…) :
+# MariaDB Homebrew passe alors sur 3307, et l'app se connecte par le socket local
+if [[ "${SKIP_BREW:-0}" != "1" ]]; then
+  owner="$(lsof -nP -iTCP:3306 -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1}')"
+  conf_dir="$(brew --prefix)/etc/my.cnf.d"
+  if [[ -n "$owner" && "$owner" != mariadbd && "$owner" != mysqld && ! -f "$conf_dir/planning-port.cnf" ]]; then
+    echo "  Port 3306 occupé par « $owner » : MariaDB Homebrew passe sur le port 3307."
+    mkdir -p "$conf_dir"
+    printf '[mysqld]\nport = 3307\n' > "$conf_dir/planning-port.cnf"
+    brew services restart mariadb >/dev/null
+  fi
+fi
+
+for i in {1..30}; do mariadb-admin ping >/dev/null 2>&1 && break; sleep 1; done
+admin=(mariadb)
+if ! mariadb -e 'SELECT 1' >/dev/null 2>&1; then
+  if mariadb -u root -e 'SELECT 1' >/dev/null 2>&1; then admin=(mariadb -u root)
+  else admin=(sudo mariadb); fi
+fi
+if ! "${admin[@]}" -e 'SELECT 1' >/dev/null 2>&1; then
+  echo "MariaDB (Homebrew) ne répond pas. État des services et du port 3306 :"
+  brew services list 2>/dev/null | grep -E 'mariadb|mysql' || true
+  lsof -nP -iTCP:3306 -sTCP:LISTEN 2>/dev/null || true
+  exit 1
+fi
+DB_SOCKET="$("${admin[@]}" -N -e 'SELECT @@socket')"
+"${admin[@]}" -e "CREATE DATABASE IF NOT EXISTS planning CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS planning_test CHARACTER SET utf8mb4;
 CREATE USER IF NOT EXISTS 'planning'@'localhost' IDENTIFIED BY 'planning';
+ALTER USER 'planning'@'localhost' IDENTIFIED BY 'planning';
 GRANT ALL ON planning.* TO 'planning'@'localhost';
 GRANT ALL ON planning_test.* TO 'planning'@'localhost';
 FLUSH PRIVILEGES;"
-for i in {1..20}; do mariadb-admin ping >/dev/null 2>&1 && break; sleep 1; done
-# Homebrew crée un compte MariaDB au nom de l'utilisateur macOS ; sinon root via sudo
-mariadb -e "$sql" 2>/dev/null || mariadb -u root -e "$sql" 2>/dev/null || sudo mariadb -e "$sql"
+echo "  MariaDB prêt (socket $DB_SOCKET)."
 for i in {1..20}; do redis-cli ping >/dev/null 2>&1 && break; sleep 1; done
 
 # --- 3. Dépendances et .env ----------------------------------------------------
@@ -76,10 +102,19 @@ if [[ ! -f .env ]]; then
   '
 fi
 
+# Connexion par le socket de MariaDB Homebrew, à chaque lancement (même si le .env existe)
+DB_SOCKET="$DB_SOCKET" node --input-type=module -e '
+  import { readFileSync, writeFileSync } from "node:fs"
+  let env = readFileSync(".env", "utf8")
+  const line = `DB_SOCKET=${process.env.DB_SOCKET}`
+  env = /^DB_SOCKET=.*$/m.test(env) ? env.replace(/^DB_SOCKET=.*$/m, line) : env.trimEnd() + "\n" + line + "\n"
+  writeFileSync(".env", env)
+'
+
 # --- 4. Base applicative -------------------------------------------------------
 step "Migrations et données de démo"
 node ace migration:run --force
-users="$(mariadb -N -u planning -pplanning -h 127.0.0.1 planning -e 'SELECT COUNT(*) FROM users')"
+users="$(mariadb -N -u planning -pplanning -S "$DB_SOCKET" planning -e 'SELECT COUNT(*) FROM users')"
 [[ "$users" == "0" ]] && node ace db:seed
 
 # --- 5. Démarrage --------------------------------------------------------------
