@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import logger from '@adonisjs/core/services/logger'
-import vine from '@vinejs/vine'
+import vine, { errors as vineErrors } from '@vinejs/vine'
 import { adapterFor, crmConfig } from '#services/crm/registry'
 import { CrmPayloadError } from '#services/crm/types'
 import { verifySignature } from '#services/crm/signature'
@@ -10,7 +10,8 @@ const eventValidator = vine.compile(
   vine.object({
     event: vine.enum(['client.upserted', 'client.deleted', 'date.upserted', 'date.deleted']),
     kind: vine.string().trim().maxLength(64).optional(),
-    data: vine.record(vine.any()),
+    // Le contenu est contrôlé par l'adaptateur ; les champs à null sont permis
+    data: vine.object({}).allowUnknownProperties(),
   })
 )
 
@@ -41,10 +42,20 @@ export default class WebhooksController {
     const adapter = adapterFor(config.source)!
     const events = []
     for (const [index, item] of items.entries()) {
-      const event = await eventValidator.validate(item)
+      let event
+      try {
+        event = await eventValidator.validate(item)
+      } catch (error) {
+        // Réponse JSON même sans « Accept: application/json » (pas de redirection)
+        if (!(error instanceof vineErrors.E_VALIDATION_ERROR)) throw error
+        return response.unprocessableEntity({
+          error: `événement ${index} invalide`,
+          details: error.messages,
+        })
+      }
       try {
         if (event.event.startsWith('client.')) adapter.mapClient(event.data)
-        else adapter.mapDate({ ...event.data, kind: event.data.kind ?? event.kind })
+        else adapter.mapDate({ ...event.data, kind: (event.data as any).kind ?? event.kind })
       } catch (error) {
         if (!(error instanceof CrmPayloadError)) throw error
         return response.unprocessableEntity({ error: `événement ${index} : ${error.message}` })

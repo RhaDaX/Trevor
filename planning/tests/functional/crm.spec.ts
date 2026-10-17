@@ -53,6 +53,42 @@ test.group('Webhooks CRM', (group) => {
     assert.isNull(await Client.findBy('external_id', '501'))
   })
 
+  test('champs à null acceptés (format réel d’un CRM Prisma)', async ({ client, assert }) => {
+    const response = await signed(client, {
+      event: 'client.upserted',
+      data: {
+        id: 77,
+        name: 'Atelier Lune',
+        emails: ['hello@atelier-lune.fr'],
+        website: null,
+        phone: null,
+        url: null,
+        deleted: false,
+      },
+    })
+    response.assertStatus(202)
+    const mirror = await Client.query()
+      .where('source', 'crm_a')
+      .where('external_id', '77')
+      .firstOrFail()
+    assert.equal(mirror.name, 'Atelier Lune')
+    assert.isNull(mirror.phone)
+  })
+
+  test('événement mal formé : 422 en JSON, jamais de redirection', async ({ client, assert }) => {
+    const body = JSON.stringify({ event: 'client.renamed', data: {} })
+    const ts = Math.floor(Date.now() / 1000)
+    const response = await client
+      .post('/webhooks/crm/crm_a')
+      .header('Content-Type', 'application/json')
+      .header('X-Planning-Timestamp', String(ts))
+      .header('X-Planning-Signature', sign(SECRET, ts, body))
+      .redirects(0)
+      .json(JSON.parse(body))
+    response.assertStatus(422)
+    assert.include(response.body().error, 'invalide')
+  })
+
   test('client puis date utile → miroir et tâche automatique sans doublon', async ({
     client,
     assert,

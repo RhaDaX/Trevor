@@ -1,0 +1,58 @@
+// Modèles supposés du CRM, à rapprocher du vrai schema.prisma.
+// Seuls ces champs sont lus par lib/planning.ts : renommez-les dans
+// les fonctions toPlanning* si votre schéma diffère.
+
+model Client {
+  id           Int        @id @default(autoincrement())
+  name         String
+  email        String?
+  billingEmail String?    @map("billing_email")
+  website      String?
+  phone        String?
+  deletedAt    DateTime?  @map("deleted_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  contracts    Contract[]
+  invoices     Invoice[]
+  followUps    FollowUp[]
+
+  @@map("clients")
+}
+
+/// Renouvellements (hébergement, domaine, maintenance…)
+model Contract {
+  id          Int       @id @default(autoincrement())
+  clientId    Int       @map("client_id")
+  client      Client    @relation(fields: [clientId], references: [id])
+  label       String
+  renewalDate DateTime  @map("renewal_date") @db.Date
+  deletedAt   DateTime? @map("deleted_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("contracts")
+}
+
+/// Échéances de factures
+model Invoice {
+  id        Int      @id @default(autoincrement())
+  clientId  Int      @map("client_id")
+  client    Client   @relation(fields: [clientId], references: [id])
+  number    String
+  dueDate   DateTime @map("due_date") @db.Date
+  status    String   @default("pending")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("invoices")
+}
+
+/// Relances datées
+model FollowUp {
+  id         Int      @id @default(autoincrement())
+  clientId   Int      @map("client_id")
+  client     Client   @relation(fields: [clientId], references: [id])
+  subject    String
+  followUpAt DateTime @map("follow_up_at")
+  done       Boolean  @default(false)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("follow_ups")
+}

@@ -1,2 +1,4 @@
 import { configApp } from '@adonisjs/eslint-config'
-export default configApp()
+
+// extras/nextjs est du code à copier dans un CRM Next.js, vérifié à part
+export default configApp({ ignores: ['extras/nextjs/**'] })

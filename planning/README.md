@@ -57,7 +57,11 @@ Conteneurs : `app` (migrations au démarrage), `worker`, `mariadb`, `redis` (AOF
 
 ## Brancher les CRM
 
-**L'outil ne lit jamais la base d'un CRM : tout passe par HTTP.** Chaque CRM expose son propre format commun, c'est lui qui connaît ses tables. Le code à coller côté CRM (routes, contrôleur, jeton, webhooks) est dans `extras/crm_api_example.ts`. Seules les fonctions `toPlanning*` sont à adapter au schéma réel.
+**L'outil ne lit jamais la base d'un CRM : tout passe par HTTP.** Chaque CRM expose son propre format commun, c'est lui qui connaît ses tables. Le code à coller côté CRM (routes, jeton, webhooks) est fourni pour les deux cas :
+- **CRM AdonisJS** : `extras/crm_api_example.ts`
+- **CRM Next.js** (App Router + Prisma) : `extras/nextjs/`, à copier tel quel (voir son README). Les webhooks partent tout seuls à chaque écriture Prisma, grâce à une extension du client.
+
+Seules les fonctions `toPlanning*` sont à adapter au schéma réel.
 
 | Sens | Canal | Rôle |
 | --- | --- | --- |
