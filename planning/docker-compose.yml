@@ -1,0 +1,124 @@
+# Déploiement Dokploy : app, worker, mariadb, redis, sauvegarde quotidienne
+# Les variables viennent de l'onglet « Environment » de Dokploy (voir .env.example).
+
+x-app-env: &app-env
+  NODE_ENV: production
+  TZ: UTC
+  HOST: 0.0.0.0
+  PORT: 3333
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  APP_KEY: ${APP_KEY:?APP_KEY manquant}
+  APP_URL: ${APP_URL:?APP_URL manquant}
+  APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Paris}
+  SESSION_DRIVER: cookie
+  DB_HOST: mariadb
+  DB_PORT: 3306
+  DB_USER: planning
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant}
+  DB_DATABASE: planning
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  SMTP_HOST: ${SMTP_HOST:-mail.infomaniak.com}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:?MAIL_FROM manquant}
+  IMAP_HOST: ${IMAP_HOST:-mail.infomaniak.com}
+  IMAP_PORT: ${IMAP_PORT:-993}
+  IMAP_USER: ${IMAP_USER:-}
+  IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+  IMAP_MAILBOX: ${IMAP_MAILBOX:-INBOX}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:planning@example.com}
+  CRM_A_NAME: ${CRM_A_NAME:-Entreprise A}
+  CRM_A_WEBHOOK_SECRET: ${CRM_A_WEBHOOK_SECRET:-}
+  CRM_A_DB_URL: ${CRM_A_DB_URL:-}
+  CRM_A_URL_TEMPLATE: ${CRM_A_URL_TEMPLATE:-}
+  CRM_B_NAME: ${CRM_B_NAME:-Entreprise B}
+  CRM_B_WEBHOOK_SECRET: ${CRM_B_WEBHOOK_SECRET:-}
+  CRM_B_DB_URL: ${CRM_B_DB_URL:-}
+  CRM_B_URL_TEMPLATE: ${CRM_B_URL_TEMPLATE:-}
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment: *app-env
+    volumes:
+      - attachments:/app/storage
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3333/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    expose:
+      - '3333'
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ['node', 'ace', 'planning:worker']
+    environment: *app-env
+    volumes:
+      - attachments:/app/storage
+    depends_on:
+      app:
+        condition: service_healthy
+
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: planning
+      MARIADB_USER: planning
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD manquant}
+    command: ['--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci', '--default-time-zone=+00:00']
+    volumes:
+      - mariadb:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # BullMQ : aucune éviction, persistance AOF
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # Sauvegarde quotidienne de la base (14 jours conservés)
+  backup:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MYSQL_PWD: ${DB_ROOT_PASSWORD}
+      BACKUP_HOUR: ${BACKUP_HOUR:-2}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    entrypoint: ['/bin/sh', '/backup.sh']
+    volumes:
+      - ./docker/backup.sh:/backup.sh:ro
+      - backups:/backups
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+volumes:
+  mariadb:
+  redis:
+  attachments:
+  backups:

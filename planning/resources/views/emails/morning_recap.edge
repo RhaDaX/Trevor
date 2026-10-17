@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif; color: #1c1917; max-width: 600px; margin: 0 auto; padding: 16px;">
+  <h1 style="font-size: 20px; margin: 0 0 4px;">Bonjour{{ user.fullName ? ' ' + user.fullName : '' }} ☀️</h1>
+  <p style="color: #78716c; margin: 0 0 24px; text-transform: capitalize;">{{ dateLabel }}</p>
+
+  @each(section in [
+    { label: 'En retard', items: overdue, color: '#dc2626' },
+    { label: "Aujourd'hui", items: today, color: '#2563eb' },
+    { label: 'À trier', items: inbox, color: '#d97706' },
+  ])
+    <h2 style="font-size: 15px; margin: 24px 0 8px; color: {{ section.color }};">
+      {{ section.label }} ({{ section.items.length }})
+    </h2>
+    @if(section.items.length)
+      <ul style="padding-left: 18px; margin: 0;">
+        @each(item in section.items)
+          <li style="margin: 4px 0;">
+            <a href="{{ item.url }}" style="color: #1c1917;">{{ item.title }}</a>
+            @if(item.client)
+              <span style="color: #78716c;"> — {{ item.client }}</span>
+            @end
+            @if(item.time)
+              <span style="color: #78716c;"> · {{ item.time }}</span>
+            @elseif(item.date && section.label === 'En retard')
+              <span style="color: #78716c;"> · {{ item.date }}</span>
+            @end
+          </li>
+        @end
+      </ul>
+    @else
+      <p style="color: #a8a29e; margin: 0;">Rien.</p>
+    @end
+  @end
+
+  <p style="margin-top: 32px;">
+    <a href="{{ appUrl }}" style="background: #1c1917; color: #fff; padding: 10px 16px; border-radius: 8px; text-decoration: none;">Ouvrir le planning</a>
+    @if(inbox.length)
+      &nbsp;<a href="{{ inboxUrl }}" style="color: #d97706;">Trier la boîte</a>
+    @end
+  </p>
+</body>
+</html>

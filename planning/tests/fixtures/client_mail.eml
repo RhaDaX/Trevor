@@ -1,0 +1,21 @@
+From: Jean Dupont <jean@dupont-btp.fr>
+To: taches@agence.fr
+Subject: TR: Mise à jour des horaires sur le site
+Date: Fri, 16 Oct 2026 08:12:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="XYZ"
+
+--XYZ
+Content-Type: text/plain; charset=utf-8
+
+Bonjour,
+
+Pouvez-vous mettre à jour les horaires d'ouverture ?
+
+Jean
+--XYZ
+Content-Type: text/plain; name="horaires.txt"
+Content-Disposition: attachment; filename="horaires.txt"
+
+Lundi-vendredi 8h-18h
+--XYZ--
