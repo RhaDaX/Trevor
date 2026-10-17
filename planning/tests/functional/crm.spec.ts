@@ -1,10 +1,15 @@
 import { test } from '@japa/runner'
 import testUtils from '@adonisjs/core/services/test_utils'
+import { createServer, type IncomingMessage, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { DateTime } from 'luxon'
+import planningConfig from '#config/planning'
 import Client from '#models/client'
+import SyncState from '#models/sync_state'
 import Task from '#models/task'
+import crmSync from '#services/crm/crm_sync'
 import { sign } from '#services/crm/signature'
-import { makeUser } from '#tests/helpers'
+import { makeClient, makeUser } from '#tests/helpers'
 
 const SECRET = 'test-secret-a'
 
@@ -36,6 +41,18 @@ test.group('Webhooks CRM', (group) => {
     response.assertStatus(404)
   })
 
+  test('charge invalide : 422 et rien n’est appliqué', async ({ client, assert }) => {
+    const response = await signed(client, {
+      events: [
+        { event: 'client.upserted', data: { id: 501, name: 'Valide' } },
+        { event: 'date.upserted', data: { id: 1, date: '2027-01-01' } },
+      ],
+    })
+    response.assertStatus(422)
+    assert.include(response.body().error, 'kind')
+    assert.isNull(await Client.findBy('external_id', '501'))
+  })
+
   test('client puis date utile → miroir et tâche automatique sans doublon', async ({
     client,
     assert,
@@ -47,7 +64,7 @@ test.group('Webhooks CRM', (group) => {
       data: {
         id: 42,
         name: 'Dupont BTP',
-        email: 'jean@dupont-btp.fr',
+        emails: ['jean@dupont-btp.fr'],
         website: 'https://www.dupont-btp.fr',
         phone: '0102030405',
       },
@@ -61,12 +78,18 @@ test.group('Webhooks CRM', (group) => {
     assert.deepEqual(mirror.emails, ['jean@dupont-btp.fr'])
     assert.deepEqual(mirror.domains, ['dupont-btp.fr'])
 
-    const renewal = { id: 7, client_id: 42, renewal_date: '2027-01-15', label: 'hébergement' }
-    await signed(client, { event: 'date.upserted', kind: 'renouvellement', data: renewal }).then(
-      (r: any) => r.assertStatus(202)
+    const renewal = {
+      id: 7,
+      kind: 'renouvellement',
+      client_id: 42,
+      date: '2027-01-15',
+      title: 'Renouvellement hébergement',
+    }
+    await signed(client, { event: 'date.upserted', data: renewal }).then((r: any) =>
+      r.assertStatus(202)
     )
     // Même événement reçu deux fois : pas de doublon
-    await signed(client, { event: 'date.upserted', kind: 'renouvellement', data: renewal })
+    await signed(client, { event: 'date.upserted', data: renewal })
 
     const tasks = await Task.query().where('user_id', owner.id).where('origin', 'crm')
     assert.lengthOf(tasks, 1)
@@ -79,47 +102,41 @@ test.group('Webhooks CRM', (group) => {
       task.dueAt!.setZone('Europe/Paris').toFormat('yyyy-MM-dd HH:mm'),
       '2027-01-15 09:00'
     )
-    // Rappel 30 jours avant (config/crm.ts)
+    // Rappel 30 jours avant pour un renouvellement (config/crm.ts)
     assert.equal(task.remindAt!.setZone('Europe/Paris').toISODate(), '2026-12-16')
 
     // Tâche cochée, puis la date bouge côté CRM (renouvellement reconduit) : elle revit
     task.status = 'done'
     task.doneAt = DateTime.now()
     await task.save()
-    await signed(client, {
-      event: 'date.upserted',
-      kind: 'renouvellement',
-      data: { ...renewal, renewal_date: '2028-01-15' },
-    })
+    await signed(client, { event: 'date.upserted', data: { ...renewal, date: '2028-01-15' } })
     await task.refresh()
     assert.equal(task.status, 'todo')
     assert.equal(task.dueAt!.setZone('Europe/Paris').toISODate(), '2028-01-15')
 
     // Date supprimée côté CRM : la tâche est annulée
-    await signed(client, { event: 'date.deleted', kind: 'renouvellement', data: renewal })
+    await signed(client, { event: 'date.deleted', data: renewal })
     await task.refresh()
     assert.equal(task.status, 'cancelled')
   })
 
   test('lot d’événements et relance marquée faite côté CRM', async ({ client, assert }) => {
     const owner = await makeUser()
+    const followUp = {
+      id: 3,
+      kind: 'relance',
+      client_id: 9,
+      date: '2026-11-02T14:30:00+01:00',
+      title: 'Relance : devis vitrine',
+      done: false,
+    }
     const response = await signed(client, {
       events: [
         {
           event: 'client.upserted',
-          data: { id: 9, name: 'Garage Petit', email: 'garage@petit.fr' },
+          data: { id: 9, name: 'Garage Petit', emails: ['garage@petit.fr'] },
         },
-        {
-          event: 'date.upserted',
-          kind: 'relance',
-          data: {
-            id: 3,
-            client_id: 9,
-            follow_up_at: '2026-11-02 14:30:00',
-            subject: 'devis vitrine',
-            done: 0,
-          },
-        },
+        { event: 'date.upserted', data: followUp },
       ],
     })
     response.assertStatus(202)
@@ -131,20 +148,147 @@ test.group('Webhooks CRM', (group) => {
       .firstOrFail()
     assert.equal(task.title, 'Relance : devis vitrine')
     assert.isFalse(task.allDay)
+    assert.equal(task.dueAt!.setZone('Europe/Paris').toFormat('HH:mm'), '14:30')
 
-    await signed(client, {
-      event: 'date.upserted',
-      kind: 'relance',
-      data: {
-        id: 3,
-        client_id: 9,
-        follow_up_at: '2026-11-02 14:30:00',
-        subject: 'devis vitrine',
-        done: 1,
-      },
-    })
+    await signed(client, { event: 'date.upserted', data: { ...followUp, done: true } })
     await task.refresh()
     assert.equal(task.status, 'done')
+  })
+})
+
+/**
+ * Faux CRM : sert /clients et /dates paginés, vérifie le jeton et
+ * enregistre les requêtes reçues.
+ */
+function fakeCrm(pages: { clients: unknown[][]; dates: unknown[][] }) {
+  const requests: URL[] = []
+  const server: Server = createServer((req: IncomingMessage, res) => {
+    const url = new URL(req.url!, 'http://crm.test')
+    requests.push(url)
+    if (req.headers.authorization !== 'Bearer jeton-crm-a') {
+      res.writeHead(401).end()
+      return
+    }
+    const resource = url.pathname.endsWith('/clients')
+      ? 'clients'
+      : url.pathname.endsWith('/dates')
+        ? 'dates'
+        : null
+    if (!resource) {
+      res.writeHead(404).end()
+      return
+    }
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const list = pages[resource]
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(
+      JSON.stringify({
+        data: list[page - 1] ?? [],
+        next_page: page < list.length ? page + 1 : null,
+      })
+    )
+  })
+  return {
+    requests,
+    async start() {
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      return `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/planning`
+    },
+    stop: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
+}
+
+test.group('Synchro par l’API des CRM', (group) => {
+  const config = planningConfig.crms.find((c) => c.source === 'crm_a')!
+  const original = { apiUrl: config.apiUrl, apiToken: config.apiToken }
+
+  group.each.setup(() => testUtils.db().withGlobalTransaction())
+  group.each.teardown(() => {
+    config.apiUrl = original.apiUrl
+    config.apiToken = original.apiToken
+  })
+
+  test('synchro complète paginée, puis delta depuis la dernière synchro', async ({ assert }) => {
+    const owner = await makeUser()
+    const gone = await makeClient({ name: 'Client disparu', source: 'crm_a', externalId: 'old-1' })
+    const crm = fakeCrm({
+      clients: [
+        [{ id: 1, name: 'Alpha Conseil', emails: ['contact@alpha.fr'] }],
+        [{ id: 2, name: 'Beta Immo', website: 'beta-immo.fr' }],
+      ],
+      dates: [
+        [
+          {
+            id: 10,
+            kind: 'echeance',
+            client_id: 2,
+            date: '2027-02-01',
+            title: 'Échéance facture F-12',
+          },
+        ],
+      ],
+    })
+    config.apiUrl = await crm.start()
+    config.apiToken = 'jeton-crm-a'
+
+    try {
+      const result = await crmSync.syncSource('crm_a', { full: true })
+      assert.deepEqual(result, { clients: 2, dates: 1 })
+
+      const clients = await Client.query()
+        .where('source', 'crm_a')
+        .where('archived', false)
+        .orderBy('external_id')
+      assert.deepEqual(
+        clients.map((c) => c.name),
+        ['Alpha Conseil', 'Beta Immo']
+      )
+      await gone.refresh()
+      assert.isTrue(gone.archived)
+
+      const task = await Task.query()
+        .where('user_id', owner.id)
+        .where('source_ref', 'crm_a:echeance:10')
+        .firstOrFail()
+      assert.equal(task.title, 'Échéance facture F-12')
+
+      // Pages 1 et 2 des clients, sans filtre de date en mode complet
+      const firstRun = crm.requests.filter((u) => u.pathname.endsWith('/clients'))
+      assert.deepEqual(
+        firstRun.map((u) => u.searchParams.get('page')),
+        ['1', '2']
+      )
+      assert.isNull(firstRun[0].searchParams.get('updated_since'))
+
+      // Synchro suivante : delta
+      crm.requests.length = 0
+      await crmSync.syncSource('crm_a')
+      const since = crm.requests[0].searchParams.get('updated_since')
+      assert.isNotNull(since)
+      const state = await SyncState.findOrFail('crm_a')
+      assert.isNull(state.lastError)
+    } finally {
+      await crm.stop()
+    }
+  })
+
+  test('erreur de l’API : enregistrée et remontée', async ({ assert }) => {
+    const crm = fakeCrm({ clients: [], dates: [] })
+    config.apiUrl = await crm.start()
+    config.apiToken = 'mauvais-jeton'
+    try {
+      await assert.rejects(() => crmSync.syncSource('crm_a'), /HTTP 401/)
+      const state = await SyncState.findOrFail('crm_a')
+      assert.include(state.lastError!, 'HTTP 401')
+    } finally {
+      await crm.stop()
+    }
+  })
+
+  test('sans API configurée, la synchro de nuit l’indique sans échouer', async ({ assert }) => {
+    config.apiUrl = undefined
+    const results = await crmSync.syncAll()
+    assert.equal(results.crm_a, 'API du CRM non configurée')
   })
 })
 

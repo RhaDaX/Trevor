@@ -49,7 +49,7 @@ Tests : `npm test` (base `planning_test`, voir `.env.test`). Vérifications : `n
 ## Déploiement Dokploy
 
 1. Nouveau projet → **Compose**, dépôt Git, chemin `planning/docker-compose.yml`.
-2. Onglet Environment : reprendre `.env.example` (au minimum `APP_KEY`, `APP_URL`, `DB_PASSWORD`, `DB_ROOT_PASSWORD`, `MAIL_FROM`, SMTP, IMAP, VAPID, secrets des CRM).
+2. Onglet Environment : reprendre `.env.example` (au minimum `APP_KEY`, `APP_URL`, `DB_PASSWORD`, `DB_ROOT_PASSWORD`, `MAIL_FROM`, SMTP, IMAP, VAPID, URL, jeton d'API et secret de webhook de chaque CRM).
 3. Domaine HTTPS sur le service `app`, port 3333 (HTTPS obligatoire pour le push et la PWA).
 4. Après le premier déploiement : `docker compose exec app node ace user:create <email>`.
 
@@ -57,16 +57,39 @@ Conteneurs : `app` (migrations au démarrage), `worker`, `mariadb`, `redis` (AOF
 
 ## Brancher les CRM
 
-Chaque CRM a un adaptateur (`CrmAdapter` : `fetchClients(since)`, `fetchDates(since)`, `mapClient()`, `mapDate()`). Un troisième CRM = une entrée de plus dans `config/planning.ts` et `config/crm.ts`.
+**L'outil ne lit jamais la base d'un CRM : tout passe par HTTP.** Chaque CRM expose son propre format commun, c'est lui qui connaît ses tables. Le code à coller côté CRM (routes, contrôleur, jeton, webhooks) est dans `extras/crm_api_example.ts`. Seules les fonctions `toPlanning*` sont à adapter au schéma réel.
 
-1. **Correspondance des tables** : `config/crm.ts`. Les noms de tables et de colonnes y sont des hypothèses (point ouvert du cahier des charges) — c'est le seul fichier à ajuster.
-2. **Webhooks** (côté CRM) : `POST /webhooks/crm/crm_a` (ou `crm_b`) signé HMAC-SHA256 — exemple prêt à coller dans `extras/crm_webhook_example.ts`.
-   - En-têtes : `X-Planning-Timestamp: <secondes unix>`, `X-Planning-Signature: sha256=<hex de HMAC(secret, "<timestamp>.<corps>")>` (tolérance 5 min).
-   - Corps : `{ "event": "client.upserted" | "client.deleted" | "date.upserted" | "date.deleted", "kind": "renouvellement", "data": { …colonnes de la ligne… } }`, ou `{ "events": [ … ] }` pour un lot.
-   - L'événement est mis en file (Redis) et appliqué par le worker.
-3. **Filet de sécurité** : synchro delta (`updated_at > dernière synchro`) chaque nuit à 3 h, via un utilisateur SQL **en lecture seule** (`CRM_A_DB_URL=mysql://lecteur:…@hôte:3306/crm_a`, `postgres://` accepté). Manuel : `node ace crm:sync [crm_a] [--full]` (`--full` archive aussi les clients disparus).
+| Sens | Canal | Rôle |
+| --- | --- | --- |
+| CRM → outil | `POST /webhooks/crm/crm_a` (ou `crm_b`), signé HMAC | Temps réel, à chaque création, modification ou suppression |
+| outil → CRM | `GET <CRM_A_API_URL>/clients` et `/dates`, jeton Bearer | Synchro de nuit (delta) et rattrapage d'un webhook perdu |
 
-Les tâches CRM sont identifiées par `source + external_id` (`crm_a:renouvellement:7`) : un même événement reçu deux fois ne crée rien, une date déplacée met la tâche à jour (et la rouvre si elle avait été cochée), une date supprimée l'annule. Les tâches CRM sont attribuées au premier compte (V1 mono-utilisateur).
+**Format commun** (identique dans l'API et dans les webhooks) :
+
+```jsonc
+// Client
+{ "id": 42, "name": "Dupont BTP", "emails": ["jean@dupont-btp.fr"], "website": "dupont-btp.fr",
+  "phone": "01 02 03 04 05", "url": "https://crm-a…/clients/42", "deleted": false }
+// Date utile
+{ "id": 7, "kind": "renouvellement", "client_id": 42, "date": "2027-01-15",
+  "title": "Renouvellement hébergement", "done": false, "deleted": false, "remind_days_before": 30 }
+```
+
+`date` vaut `YYYY-MM-DD` pour une date seule (rappel à 9 h), ou une date ISO 8601 avec fuseau. `kind` : `echeance`, `renouvellement` (rappel 30 jours avant par défaut), `relance`, ou tout autre type (`config/crm.ts`).
+
+**API de lecture** (à exposer par chaque CRM) :
+- `GET /clients?updated_since=<ISO>&page=<n>` et `GET /dates?updated_since=<ISO>&page=<n>`
+- Réponse : `{ "data": [...], "next_page": 2 | null }`. Sans `updated_since`, renvoyer tout (synchro complète).
+- En-tête `Authorization: Bearer <jeton>`. Côté outil : `CRM_A_API_URL=https://crm-a…/api/planning` et `CRM_A_API_TOKEN`.
+
+**Webhooks** :
+- En-têtes : `X-Planning-Timestamp: <secondes unix>`, `X-Planning-Signature: sha256=<hex de HMAC(secret, "<timestamp>.<corps>")>` (tolérance 5 min).
+- Corps : `{ "event": "client.upserted" | "client.deleted" | "date.upserted" | "date.deleted", "data": { … } }`, ou `{ "events": [ … ] }` pour un lot.
+- Le lot entier est contrôlé avant d'entrer dans la file : une charge invalide renvoie 422 et rien n'est appliqué. Sinon 202, puis le worker applique.
+
+**Synchro de nuit** : chaque nuit à 3 h, l'outil appelle l'API avec `updated_since` = dernière synchro réussie. Pour la lancer à la main : `node ace crm:sync [crm_a] [--full]`. Le mode `--full` relit tout et archive les clients disparus. L'état (dernier webhook, dernière synchro, dernière erreur) s'affiche en bas de la page Clients.
+
+Les tâches CRM sont identifiées par `source + kind + id` (`crm_a:renouvellement:7`). Un même événement reçu deux fois ne crée rien. Une date déplacée met la tâche à jour (et la rouvre si elle avait été cochée). Une date supprimée l'annule. Les tâches CRM sont attribuées au premier compte (V1 mono-utilisateur).
 
 ## Raccourcis Apple
 
@@ -79,6 +102,7 @@ Créer un jeton dans **Réglages → Jetons d'API** (un par appareil, révocable
 
 - **MariaDB au lieu de Postgres** : pas de `pg_trgm`, le rapprochement client flou se fait en mémoire (index rechargé chaque minute, ~1000 clients) : email exact, puis domaine (hors Gmail, Orange…), puis nom (Levenshtein). Ambigu → sans client et à trier, avec suggestions dans la boîte.
 - **Une table de plus** que les quatre prévues : `push_subscriptions` (appareils abonnés au push), en plus de celles d'Adonis (`users`, `auth_access_tokens`).
+- **Aucune lecture SQL des CRM** (le point 4 la prévoyait en attendant les webhooks) : la synchro de nuit passe par une API de lecture exposée par chaque CRM.
 - **React** retenu pour Inertia (point ouvert tranché).
 - Intervalle de relance par défaut : **2 h** (réglable, point ouvert).
 
@@ -91,7 +115,7 @@ app/services/task_service.ts      capture, report, récurrence, tri
 app/services/reminders.ts         sonnerie, relance insistante, récap du matin
 app/services/calendar_service.ts  flux iCal
 app/services/mail_capture.ts      relève IMAP Infomaniak
-app/services/crm/                 adaptateurs, signature HMAC, synchro
+app/services/crm/                 adaptateur API, signature HMAC, synchro
 commands/worker.ts                worker BullMQ + tâches planifiées
 public/sw.js                      service worker (push, actions rapides)
 ```

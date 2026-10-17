@@ -85,7 +85,6 @@
     "luxon": "^3.7.2",
     "mailparser": "^3.9.40",
     "mysql2": "^3.24.6",
-    "pg": "^8.23.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "reflect-metadata": "^0.2.2",

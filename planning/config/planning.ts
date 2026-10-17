@@ -8,8 +8,10 @@ export interface CrmSourceConfig {
   company: Company
   name: string
   webhookSecret?: string
-  /** URL de connexion SQL en lecture seule (mysql://user:pass@host:port/db) */
-  dbUrl?: string
+  /** Racine de l'API de lecture du CRM (…/api/planning) */
+  apiUrl?: string
+  /** Jeton envoyé en « Authorization: Bearer » à l'API du CRM */
+  apiToken?: string
   /** Lien vers la fiche client, {id} est remplacé par l'identifiant externe */
   urlTemplate?: string
 }
@@ -51,7 +53,8 @@ export default {
       company: 'a',
       name: env.get('CRM_A_NAME', 'Entreprise A'),
       webhookSecret: env.get('CRM_A_WEBHOOK_SECRET'),
-      dbUrl: env.get('CRM_A_DB_URL'),
+      apiUrl: env.get('CRM_A_API_URL'),
+      apiToken: env.get('CRM_A_API_TOKEN'),
       urlTemplate: env.get('CRM_A_URL_TEMPLATE'),
     },
     {
@@ -59,7 +62,8 @@ export default {
       company: 'b',
       name: env.get('CRM_B_NAME', 'Entreprise B'),
       webhookSecret: env.get('CRM_B_WEBHOOK_SECRET'),
-      dbUrl: env.get('CRM_B_DB_URL'),
+      apiUrl: env.get('CRM_B_API_URL'),
+      apiToken: env.get('CRM_B_API_TOKEN'),
       urlTemplate: env.get('CRM_B_URL_TEMPLATE'),
     },
   ] satisfies CrmSourceConfig[] as CrmSourceConfig[],

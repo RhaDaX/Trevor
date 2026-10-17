@@ -4,7 +4,8 @@ import { sign, verifySignature } from '#services/crm/signature'
 import { similarity, normalize } from '#services/client_matcher'
 import { snoozeTarget } from '#services/dates'
 import { senderOf } from '#services/mail_capture'
-import { readDate, fillTemplate } from '#services/crm/sql_crm_adapter'
+import { ApiCrmAdapter, readDate } from '#services/crm/api_crm_adapter'
+import { CrmPayloadError } from '#services/crm/types'
 
 const tz = 'Europe/Paris'
 
@@ -62,18 +63,55 @@ test.group('Capture mail', () => {
   })
 })
 
-test.group('Lecture des lignes CRM', () => {
-  test('date seule vs date et heure', ({ assert }) => {
-    assert.deepEqual(readDate('2026-12-01').dateOnly, true)
-    assert.deepEqual(readDate(new Date('2026-12-01T14:30:00Z')).dateOnly, false)
-    assert.isNull(readDate(null).date)
+test.group('Format commun des CRM', () => {
+  const adapter = new ApiCrmAdapter({
+    source: 'crm_a',
+    company: 'a',
+    name: 'A',
+    urlTemplate: 'https://crm-a.test/clients/{id}',
   })
 
-  test('gabarit de titre', ({ assert }) => {
-    assert.equal(
-      fillTemplate('Renouvellement {label}', { label: 'hébergement' }),
-      'Renouvellement hébergement'
-    )
-    assert.equal(fillTemplate('Relance : {subject}', {}), 'Relance')
+  test('date seule vs date et heure', ({ assert }) => {
+    assert.isTrue(readDate('2026-12-01').dateOnly)
+    assert.isFalse(readDate('2026-12-01T14:30:00+01:00').dateOnly)
+    assert.isNull(readDate(null).date)
+    assert.throws(() => readDate('pas une date'), /date invalide/)
+  })
+
+  test('client : emails nettoyés, domaine du site, lien vers la fiche', ({ assert }) => {
+    const client = adapter.mapClient({
+      id: 42,
+      name: ' Dupont BTP ',
+      emails: ['Jean@Dupont-BTP.fr', 'pas-un-email', 'jean@dupont-btp.fr'],
+      website: 'www.dupont-btp.fr',
+    })
+    assert.deepEqual(client, {
+      externalId: '42',
+      name: 'Dupont BTP',
+      emails: ['jean@dupont-btp.fr'],
+      domains: ['dupont-btp.fr'],
+      phone: null,
+      crmUrl: 'https://crm-a.test/clients/42',
+      deleted: false,
+    })
+  })
+
+  test('date : rappel par défaut du type, identifiant composé', ({ assert }) => {
+    const date = adapter.mapDate({
+      id: 7,
+      kind: 'renouvellement',
+      client_id: 42,
+      date: '2027-01-15',
+      title: 'Hébergement',
+    })
+    assert.equal(date.externalId, 'renouvellement:7')
+    assert.equal(date.remindDaysBefore, 30)
+    assert.equal(date.clientExternalId, '42')
+    assert.isTrue(date.dateOnly)
+  })
+
+  test('charge invalide refusée', ({ assert }) => {
+    assert.throws(() => adapter.mapClient({ name: 'sans id' }), CrmPayloadError)
+    assert.throws(() => adapter.mapDate({ id: 1, date: '2027-01-01' }), CrmPayloadError)
   })
 })

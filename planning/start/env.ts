@@ -45,10 +45,12 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   CRM_A_NAME: Env.schema.string.optional(),
   CRM_A_WEBHOOK_SECRET: Env.schema.string.optional(),
-  CRM_A_DB_URL: Env.schema.string.optional(),
+  CRM_A_API_URL: Env.schema.string.optional(),
+  CRM_A_API_TOKEN: Env.schema.string.optional(),
   CRM_A_URL_TEMPLATE: Env.schema.string.optional(),
   CRM_B_NAME: Env.schema.string.optional(),
   CRM_B_WEBHOOK_SECRET: Env.schema.string.optional(),
-  CRM_B_DB_URL: Env.schema.string.optional(),
+  CRM_B_API_URL: Env.schema.string.optional(),
+  CRM_B_API_TOKEN: Env.schema.string.optional(),
   CRM_B_URL_TEMPLATE: Env.schema.string.optional(),
 })

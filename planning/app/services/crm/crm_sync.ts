@@ -6,15 +6,14 @@ import SyncState from '#models/sync_state'
 import Task from '#models/task'
 import User from '#models/user'
 import clientMatcher from '#services/client_matcher'
-import { adapterFor, allSources } from '#services/crm/registry'
-import { crmConfig } from '#services/crm/sql_crm_adapter'
+import { adapterFor, allSources, crmConfig } from '#services/crm/registry'
 import type { ClientData, DateData, RawRow } from '#services/crm/types'
 
 export interface CrmEvent {
   source: string
   /** client.upserted | client.deleted | date.upserted | date.deleted */
   event: string
-  /** Type de date utile pour les événements date.* */
+  /** Ancien format : type de date hors de `data` (accepté, `data.kind` prime) */
   kind?: string
   data: RawRow
 }
@@ -129,8 +128,7 @@ export class CrmSync {
       if (action === 'deleted') data.deleted = true
       await this.applyClient(event.source, data)
     } else if (type === 'date') {
-      if (!event.kind) throw new Error('événement date sans « kind »')
-      const data = adapter.mapDate(event.data, event.kind)
+      const data = adapter.mapDate({ ...event.data, kind: event.data.kind ?? event.kind })
       if (action === 'deleted') data.deleted = true
       await this.applyDate(event.source, data)
     } else {
@@ -143,7 +141,7 @@ export class CrmSync {
   }
 
   /**
-   * Filet de sécurité de nuit : delta updated_at > dernière synchro.
+   * Filet de sécurité de nuit, par l'API du CRM : delta depuis la dernière synchro.
    * En mode complet, archive aussi les clients disparus du CRM.
    */
   async syncSource(source: string, options: { full?: boolean } = {}) {
@@ -169,8 +167,8 @@ export class CrmSync {
       }
 
       const dates = await adapter.fetchDates(since)
-      for (const { kind, row } of dates) {
-        await this.applyDate(source, adapter.mapDate(row, kind))
+      for (const row of dates) {
+        await this.applyDate(source, adapter.mapDate(row))
       }
 
       state.lastFullSync = startedAt
@@ -188,8 +186,9 @@ export class CrmSync {
   async syncAll(options: { full?: boolean } = {}) {
     const results: Record<string, unknown> = {}
     for (const source of allSources()) {
-      if (!crmConfig(source)?.dbUrl) {
-        results[source] = 'pas d’accès SQL configuré'
+      const config = crmConfig(source)
+      if (!config?.apiUrl || !config.apiToken) {
+        results[source] = 'API du CRM non configurée'
         continue
       }
       try {
