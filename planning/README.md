@@ -26,7 +26,15 @@ Sans date reconnue, ou si le client est ambigu, la tâche va dans **À trier**.
 
 **Jamais silencieuse** : une tâche datée sonne à l'échéance (ou au rappel / report), puis est relancée à intervalle réglable (2 h par défaut, jours ouvrés, 8 h–19 h) jusqu'à être cochée ou reportée. Une tâche sans date est dans « à trier » et revient chaque matin dans le récap.
 
-## Démarrer en local
+## Démarrer en local sur Mac — une commande
+
+```bash
+cd planning && ./scripts/dev-mac.sh
+```
+
+Le script installe au besoin Node 22, MariaDB, Redis et Mailpit avec Homebrew. Il crée ensuite les bases et le `.env` (clé d'app et clés VAPID générées), migre la base et charge la démo. Pour finir, il démarre l'app et le worker, puis ouvre le navigateur. Identifiants : `nathan@example.com` / `secret123`. Les mails (récap du matin) arrivent sur http://localhost:8025. Ctrl+C arrête tout. Le script peut être relancé sans risque.
+
+## Démarrer en local (manuel)
 
 Prérequis : Node 22 (Adonis 6 ne charge pas ses commandes sous Node 24), MariaDB ≥ 10.6, Redis.
 
