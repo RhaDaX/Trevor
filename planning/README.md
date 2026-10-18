@@ -126,6 +126,31 @@ Créer un jeton dans **Réglages → Jetons d'API** (un par appareil, révocable
 - **Siri (iPhone)** : Raccourcis → « Dicter le texte » → « Obtenir le contenu de l'URL » (`POST https://…/api/tasks`, en-têtes `Authorization: Bearer <jeton>` et `X-Planning-Origin: siri`, corps JSON `text`) → « Obtenir la valeur du dictionnaire » `message` → « Énoncer ». Nommer le raccourci « Ajoute une tâche ».
 - **Mac** : même raccourci avec « Demander une entrée », origine `mac`, raccourci clavier global dans ses détails ; ou Raycast avec `extras/raycast/add-task.sh`.
 
+## Erreurs, logs et traces
+
+Chaque requête et chaque job reçoit un **identifiant de trace** lisible, du type `PLN-7K4M-Q2XD` (`JOB-…` pour un job planifié). Il est présent :
+- sur **chaque ligne de log** (avec l'utilisateur et l'origine : web, job, cli) ;
+- dans l'en-tête de réponse **`X-Trace-Id`** ;
+- dans **chaque message d'erreur** montré à l'utilisateur : message rouge en bas de l'écran ou page d'erreur, avec un bouton « Copier ».
+
+La trace suit le traitement de bout en bout : un webhook CRM et le job qui l'applique partagent le même identifiant, renvoyé au CRM dans la réponse (`{"traceId": …}`). Un appelant peut aussi transmettre le sien via `X-Trace-Id`.
+
+**Messages** : chaque erreur connue a un code stable et un message clair (`NOT_FOUND`, `VALIDATION_FAILED`, `PAGE_EXPIRED`, `DATABASE_UNAVAILABLE`, `QUEUE_UNAVAILABLE`…, voir `app/exceptions/app_error.ts`). Une erreur inattendue affiche « Une erreur inattendue s'est produite », sans aucun détail technique, mais la pile complète est enregistrée dans les logs. Pour une erreur métier volontaire : `throw new AppError('CODE', 'Message clair', { status: 409 })`.
+- API, webhooks et appels `fetch` reçoivent `{ "error": { "code", "message", "traceId", "fields"? } }`.
+- Une action dans l'app ramène sur la page, avec le message et la référence.
+
+**Erreurs du navigateur** : les erreurs JavaScript non gérées sont envoyées au serveur (`POST /client-errors`, 20 par minute au plus) et apparaissent dans les mêmes logs, avec leur propre référence.
+
+**Logs** : JSON, un fichier par processus dans `storage/logs/` (`web`, `worker`, `cli`), rotation quotidienne, 14 jours conservés. Mots de passe et jetons sont masqués. En production, les logs sortent aussi sur la sortie standard (visibles dans Dokploy).
+
+**Retrouver une erreur** à partir de la référence donnée par l'utilisateur, en tolérant une saisie approximative (`pln 7k4m q2xd`) :
+
+```bash
+node ace trace PLN-7K4M-Q2XD          # en local
+docker compose exec app node ace trace PLN-7K4M-Q2XD   # en production (logs web et worker partagés)
+node ace trace PLN-7K4M-Q2XD --json   # lignes brutes
+```
+
 ## Écarts assumés par rapport au cahier des charges
 
 - **MariaDB au lieu de Postgres** : pas de `pg_trgm`, le rapprochement client flou se fait en mémoire (index rechargé chaque minute, ~1000 clients) : email exact, puis domaine (hors Gmail, Orange…), puis nom (Levenshtein). Ambigu → sans client et à trier, avec suggestions dans la boîte.

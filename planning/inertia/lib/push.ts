@@ -1,21 +1,8 @@
-function xsrfToken() {
-  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)
-  return match ? decodeURIComponent(match[1]) : ''
-}
+import { requestJson } from '~/lib/errors'
 
-export async function postJson(url: string, body: unknown) {
-  const response = await fetch(url, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-XSRF-TOKEN': xsrfToken(),
-    },
-    body: JSON.stringify(body),
-  })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  return response
+/** POST JSON vers l'app (jeton CSRF, erreurs claires avec trace) */
+export function postJson(url: string, body: unknown) {
+  return requestJson(url, { method: 'POST', body: JSON.stringify(body) })
 }
 
 export function registerServiceWorker() {

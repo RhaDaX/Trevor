@@ -17,6 +17,7 @@ const CalendarController = () => import('#controllers/calendar_controller')
 const WebhooksController = () => import('#controllers/webhooks_controller')
 const QuickActionsController = () => import('#controllers/quick_actions_controller')
 const ApiTasksController = () => import('#controllers/api/tasks_controller')
+const ClientErrorsController = () => import('#controllers/client_errors_controller')
 
 router.get('/health', ({ response }) => response.json({ ok: true }))
 
@@ -63,6 +64,7 @@ router
     router.get('/clients/:id', [ClientsController, 'show']).as('clients.show')
 
     router.get('/search', [SearchController, 'handle']).as('search')
+    router.post('/client-errors', [ClientErrorsController, 'store']).as('client_errors')
 
     router.get('/settings', [SettingsController, 'show']).as('settings')
     router.put('/settings', [SettingsController, 'update'])

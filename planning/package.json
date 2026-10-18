@@ -31,7 +31,8 @@
     "#start/*": "./start/*.js",
     "#config/*": "./config/*.js",
     "#jobs/*": "./app/jobs/*.js",
-    "#presenters/*": "./app/presenters/*.js"
+    "#presenters/*": "./app/presenters/*.js",
+    "#commands/*": "./commands/*.js"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^7.8.2",
@@ -85,6 +86,7 @@
     "luxon": "^3.7.2",
     "mailparser": "^3.9.40",
     "mysql2": "^3.24.6",
+    "pino-roll": "^4.0.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "reflect-metadata": "^0.2.2",

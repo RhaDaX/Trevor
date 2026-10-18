@@ -24,6 +24,7 @@ import {
 } from '~/lib/push'
 import { Button, Card, Field, PageHeader, inputClass } from '~/components/ui'
 import ThemeSwitch from '~/components/theme_switch'
+import { ApiError, showToast } from '~/lib/errors'
 
 interface Props {
   settings: {
@@ -169,7 +170,9 @@ function PushSection({ push }: { push: Props['push'] }) {
                   setState('on')
                   router.reload({ only: ['push'] })
                 } catch (e: any) {
-                  setError(e.message)
+                  if (e instanceof ApiError)
+                    showToast({ tone: 'error', text: e.message, traceId: e.traceId })
+                  else setError(e.message)
                 }
               }}
             >

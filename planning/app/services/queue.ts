@@ -1,6 +1,7 @@
 import { Queue, type JobsOptions } from 'bullmq'
 import app from '@adonisjs/core/services/app'
 import planningConfig from '#config/planning'
+import { currentTraceId } from '#services/trace'
 
 export const QUEUE_NAME = 'planning'
 
@@ -32,13 +33,19 @@ export function runJobsInline(handler: InlineHandler | null) {
   inlineHandler = handler
 }
 
-export async function dispatch(name: JobName, data: unknown, options: JobsOptions = {}) {
+/** Le job emporte la trace de la requête qui l'a créé (webhook → job → synchro) */
+export async function dispatch(
+  name: JobName,
+  data: Record<string, unknown>,
+  options: JobsOptions = {}
+) {
+  const payload = { ...data, _traceId: data._traceId ?? currentTraceId() }
   if (inlineHandler || app.inTest) {
-    const { handleJob } = await import('#jobs/handlers')
-    const handler = inlineHandler ?? handleJob
-    return handler(name, data)
+    if (inlineHandler) return inlineHandler(name, payload)
+    const { runJob } = await import('#jobs/handlers')
+    return runJob(name, payload)
   }
-  return getQueue().add(name, data, {
+  return getQueue().add(name, payload, {
     attempts: 5,
     backoff: { type: 'exponential', delay: 10_000 },
     removeOnComplete: 1000,

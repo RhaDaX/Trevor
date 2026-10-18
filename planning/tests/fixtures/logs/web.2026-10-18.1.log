@@ -1,0 +1,3 @@
+{"level":30,"time":1792300000000,"pid":1,"hostname":"h","name":"planning","traceId":"PLN-7K4M-Q2XD","origin":"web","userId":1,"method":"POST","url":"/tasks/12/complete","status":302,"durationMs":41,"msg":"POST /tasks/12/complete → 302 (41 ms)"}
+{"level":50,"time":1792299999990,"pid":1,"hostname":"h","name":"planning","traceId":"PLN-7K4M-Q2XD","origin":"web","userId":1,"code":"DATABASE_UNAVAILABLE","status":503,"err":{"type":"Error","message":"connect ECONNREFUSED","stack":"Error: connect ECONNREFUSED\n    at TCPConnectWrap"},"msg":"DATABASE_UNAVAILABLE : connect ECONNREFUSED"}
+{"level":30,"time":1792300000500,"pid":1,"hostname":"h","name":"planning","traceId":"PLN-AAAA-BBBB","origin":"web","msg":"GET /today → 200 (12 ms)"}

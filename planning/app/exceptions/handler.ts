@@ -1,45 +1,83 @@
 import app from '@adonisjs/core/services/app'
 import { HttpContext, ExceptionHandler } from '@adonisjs/core/http'
-import type { StatusPageRange, StatusPageRenderer } from '@adonisjs/core/types/http'
+import { describeError } from '#exceptions/app_error'
+import { currentTraceId } from '#services/trace'
+
+/** Requêtes qui attendent du JSON : API, webhooks, actions de notification, appels fetch */
+function wantsJson(ctx: HttpContext) {
+  const url = ctx.request.url()
+  if (/^\/(api|webhooks|q|search|push|client-errors)(\/|$)/.test(url)) return true
+  if (ctx.request.header('x-inertia')) return false
+  return ctx.request.accepts(['html', 'json']) === 'json'
+}
 
 export default class HttpExceptionHandler extends ExceptionHandler {
-  /**
-   * In debug mode, the exception handler will display verbose errors
-   * with pretty printed stack traces.
-   */
   protected debug = !app.inProduction
+  protected renderStatusPages = false
 
-  /**
-   * Status pages are used to display a custom HTML pages for certain error
-   * codes. You might want to enable them in production only, but feel
-   * free to enable them in development as well.
-   */
-  protected renderStatusPages = app.inProduction
-
-  /**
-   * Status pages is a collection of error code range and a callback
-   * to return the HTML contents to send as a response.
-   */
-  protected statusPages: Record<StatusPageRange, StatusPageRenderer> = {
-    '404': (error, { inertia }) => inertia.render('errors/not_found', { error }),
-    '500..599': (error, { inertia }) => inertia.render('errors/server_error', { error }),
-  }
-
-  /**
-   * The method is used for handling errors and returning
-   * response to the client
-   */
   async handle(error: unknown, ctx: HttpContext) {
-    return super.handle(error, ctx)
+    const described = describeError(error)
+    const traceId = currentTraceId() ?? 'PLN-INCONNU'
+    ctx.response.header('X-Trace-Id', traceId)
+
+    if (wantsJson(ctx)) {
+      return ctx.response.status(described.status).json({
+        error: {
+          code: described.code,
+          message: described.message,
+          traceId,
+          ...(described.fields ? { fields: described.fields } : {}),
+        },
+      })
+    }
+
+    // Validation et session : comportement Inertia standard (erreurs de champ, retour à la page)
+    if (described.code === 'VALIDATION_FAILED' || described.code === 'UNAUTHENTICATED') {
+      return super.handle(error, ctx)
+    }
+
+    // Action (POST, PUT, DELETE) depuis l'app : message clair et retour à la page
+    if (ctx.request.method() !== 'GET' && ctx.session) {
+      ctx.session.flash('error', described.message)
+      ctx.session.flash('errorRef', traceId)
+      return ctx.response.redirect().back()
+    }
+
+    // Page demandée en développement : page de debug détaillée pour les 5xx
+    if (this.debug && described.status >= 500) return super.handle(error, ctx)
+
+    const page = described.status === 404 ? 'errors/not_found' : 'errors/server_error'
+    // La valeur renvoyée par handle n'est pas envoyée : on écrit la réponse nous-mêmes
+    const rendered = await ctx.inertia.render(page, {
+      error: {
+        code: described.code,
+        message: described.message,
+        status: described.status,
+        traceId,
+      },
+    })
+    return ctx.response.status(described.status).send(rendered)
   }
 
-  /**
-   * The method is used to report error to the logging service or
-   * the a third party error monitoring service.
-   *
-   * @note You should not attempt to send a response from this method.
-   */
   async report(error: unknown, ctx: HttpContext) {
-    return super.report(error, ctx)
+    const described = describeError(error)
+    const e = error as any
+    const fields = {
+      code: described.code,
+      status: described.status,
+      method: ctx.request.method(),
+      url: ctx.request.url(),
+      route: ctx.route?.pattern,
+    }
+    // 404 et validation : simple information ; autres 4xx : warn ; 5xx : error avec la pile
+    if (described.expected) {
+      const level = described.status === 404 || described.status === 422 ? 'info' : 'warn'
+      ctx.logger[level](
+        { ...fields, reason: e?.message },
+        `${described.code} : ${described.message}`
+      )
+    } else {
+      ctx.logger.error({ ...fields, err: error }, `${described.code} : ${e?.message ?? error}`)
+    }
   }
 }

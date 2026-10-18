@@ -16,7 +16,7 @@ export default class WorkerCommand extends BaseCommand {
   declare nightlyCron: string
 
   async run() {
-    const { handleJob } = await import('#jobs/handlers')
+    const { runJob } = await import('#jobs/handlers')
     const { default: planningConfig } = await import('#config/planning')
     const queue = getQueue()
 
@@ -33,12 +33,18 @@ export default class WorkerCommand extends BaseCommand {
       { name: 'crm-sync', data: { full: false } }
     )
 
-    const worker = new Worker(QUEUE_NAME, async (job) => handleJob(job.name as JobName, job.data), {
-      connection: redisConnection(),
-      concurrency: 1,
-    })
+    const worker = new Worker(
+      QUEUE_NAME,
+      async (job) => runJob(job.name as JobName, job.data, job.id),
+      {
+        connection: redisConnection(),
+        concurrency: 1,
+      }
+    )
     worker.on('failed', (job, error) => {
-      this.logger.error(`job ${job?.name} #${job?.id} en échec : ${error.message}`)
+      this.logger.error(
+        `job ${job?.name} #${job?.id} en échec [${job?.data?._traceId ?? '—'}] : ${error.message}`
+      )
     })
     worker.on('error', (error) => this.logger.error(error.message))
 

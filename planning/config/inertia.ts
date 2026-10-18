@@ -32,6 +32,7 @@ const inertiaConfig = defineConfig({
       ctx.inertia.always(() => ({
         success: ctx.session?.flashMessages.get('success') ?? null,
         error: ctx.session?.flashMessages.get('error') ?? null,
+        errorRef: ctx.session?.flashMessages.get('errorRef') ?? null,
         newToken: ctx.session?.flashMessages.get('newToken') ?? null,
         undoTaskId: ctx.session?.flashMessages.get('undoTaskId') ?? null,
       })),

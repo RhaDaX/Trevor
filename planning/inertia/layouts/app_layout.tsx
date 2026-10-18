@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { SharedProps } from '~/lib/types'
+import { TOAST_EVENT, type ToastDetail } from '~/lib/errors'
 import QuickCapture, { FOCUS_CAPTURE_EVENT } from '~/components/quick_capture'
 import Shortcuts from '~/components/shortcuts'
 import ThemeSwitch from '~/components/theme_switch'
@@ -59,38 +60,85 @@ function CompanySwitch() {
   )
 }
 
+function TraceRef({ traceId }: { traceId: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      title="Copier la référence"
+      onClick={() => {
+        navigator.clipboard?.writeText(traceId)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      }}
+      className="inline-flex h-7 items-center gap-1.5 rounded-md bg-white/15 px-2 font-mono text-[12px] tracking-wide hover:bg-white/25"
+    >
+      {copied ? 'Copié' : `Réf. ${traceId}`}
+    </button>
+  )
+}
+
 function Toast() {
   const { flash } = usePage<Props>().props
   const [toast, setToast] = useState<{
     text: string
     tone: 'ok' | 'error'
     undo: number | null
+    traceId: string | null
     id: number
   } | null>(null)
+
+  const open = (next: Omit<NonNullable<typeof toast>, 'id'>) => {
+    const id = Date.now() + Math.random()
+    setToast({ ...next, id })
+    // Une erreur reste plus longtemps : le temps de noter sa référence
+    setTimeout(
+      () => setToast((cur) => (cur?.id === id ? null : cur)),
+      next.tone === 'error' ? 12000 : 5500
+    )
+  }
 
   useEffect(() => {
     const text = flash.success ?? flash.error
     if (!text) return
-    const id = Date.now()
-    setToast({ text, tone: flash.error ? 'error' : 'ok', undo: flash.undoTaskId, id })
-    const t = setTimeout(() => setToast((cur) => (cur?.id === id ? null : cur)), 5500)
-    return () => clearTimeout(t)
+    open({
+      text,
+      tone: flash.error ? 'error' : 'ok',
+      undo: flash.undoTaskId,
+      traceId: flash.errorRef,
+    })
   }, [flash])
+
+  useEffect(() => {
+    const onToast = (event: Event) => {
+      const detail = (event as CustomEvent<ToastDetail>).detail
+      open({
+        text: detail.text,
+        tone: detail.tone ?? 'ok',
+        undo: null,
+        traceId: detail.traceId ?? null,
+      })
+    }
+    window.addEventListener(TOAST_EVENT, onToast)
+    return () => window.removeEventListener(TOAST_EVENT, onToast)
+  }, [])
 
   return (
     <div
-      aria-live="polite"
+      aria-live={toast?.tone === 'error' ? 'assertive' : 'polite'}
       className="pointer-events-none fixed inset-x-0 bottom-[84px] z-50 flex justify-center px-4 sm:bottom-6"
     >
       {toast && (
         <div
           key={toast.id}
+          role={toast.tone === 'error' ? 'alert' : 'status'}
           className={cx(
-            'pointer-events-auto flex animate-rise items-center gap-3 rounded-xl py-2 pr-2 pl-4 text-sm shadow-lg',
+            'pointer-events-auto flex max-w-xl animate-rise flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl py-2 pr-2 pl-4 text-sm shadow-lg',
             toast.tone === 'error' ? 'bg-signal text-white' : 'bg-ink text-ink-inverse'
           )}
         >
           <span className="py-1">{toast.text}</span>
+          {toast.traceId && <TraceRef traceId={toast.traceId} />}
           {toast.undo && (
             <button
               type="button"

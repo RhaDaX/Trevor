@@ -8,6 +8,7 @@ import User from '#models/user'
 import clientMatcher from '#services/client_matcher'
 import { adapterFor, allSources, crmConfig } from '#services/crm/registry'
 import type { ClientData, DateData, RawRow } from '#services/crm/types'
+import { currentTraceId } from '#services/trace'
 
 export interface CrmEvent {
   source: string
@@ -177,7 +178,7 @@ export class CrmSync {
       logger.info({ source, clients: clients.length, dates: dates.length }, 'synchro CRM terminée')
       return { clients: clients.length, dates: dates.length }
     } catch (error: any) {
-      state.lastError = `${DateTime.now().toISO()} — ${error?.message ?? error}`
+      state.lastError = `${DateTime.now().toISO()} [${currentTraceId() ?? '—'}] ${error?.message ?? error}`
       await state.save()
       throw error
     }

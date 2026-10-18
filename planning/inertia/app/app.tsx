@@ -6,6 +6,8 @@ import type { ReactNode } from 'react'
 import AppLayout from '~/layouts/app_layout'
 import { registerServiceWorker } from '~/lib/push'
 import { watchSystemTheme } from '~/lib/theme'
+import { installGlobalErrorHandlers, showToast } from '~/lib/errors'
+import { router } from '@inertiajs/react'
 
 const appName = 'Planning'
 
@@ -37,3 +39,10 @@ createInertiaApp({
 
 registerServiceWorker()
 watchSystemTheme()
+installGlobalErrorHandlers()
+
+// Perte de connexion pendant une action : message clair plutôt qu'un échec silencieux
+router.on('exception', (event) => {
+  event.preventDefault()
+  showToast({ tone: 'error', text: 'Connexion impossible : vérifiez votre réseau puis réessayez.' })
+})

@@ -45,6 +45,8 @@ export interface SharedProps {
   flash: {
     success: string | null
     error: string | null
+    /** Référence de trace à communiquer (PLN-XXXX-XXXX) */
+    errorRef: string | null
     newToken: { name: string; value: string } | null
     undoTaskId: number | null
   }

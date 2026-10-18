@@ -16,7 +16,8 @@ export const appKey = new Secret(env.get('APP_KEY'))
  * The configuration settings used by the HTTP server
  */
 export const http = defineConfig({
-  generateRequestId: true,
+  // L'identifiant de trace est géré par #middleware/trace_middleware (format PLN-XXXX-XXXX)
+  generateRequestId: false,
   allowMethodSpoofing: false,
 
   /**

@@ -5,6 +5,7 @@ import { adapterFor, crmConfig } from '#services/crm/registry'
 import { CrmPayloadError } from '#services/crm/types'
 import { verifySignature } from '#services/crm/signature'
 import { dispatch } from '#services/queue'
+import { currentTraceId } from '#services/trace'
 
 const eventValidator = vine.compile(
   vine.object({
@@ -65,6 +66,6 @@ export default class WebhooksController {
     for (const event of events) {
       await dispatch('crm-event', { source: config.source, ...event })
     }
-    return response.accepted({ queued: events.length })
+    return response.accepted({ queued: events.length, traceId: currentTraceId() })
   }
 }
